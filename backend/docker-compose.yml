@@ -1,0 +1,19 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - DEFEND_DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+      - DEFEND_AWS_REGION=sa-east-1
+      - DEFEND_API_KEY=dev-api-key-change-me
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY=local
+    depends_on:
+      - dynamodb-local
+
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    ports:
+      - "8000:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"

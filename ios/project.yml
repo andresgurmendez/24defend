@@ -1,0 +1,50 @@
+name: TwentyFourDefend
+options:
+  bundleIdPrefix: com.24defend
+  deploymentTarget:
+    iOS: "16.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+
+targets:
+  TwentyFourDefend:
+    type: application
+    platform: iOS
+    sources:
+      - path: TwentyFourDefend
+        excludes:
+          - "*.entitlements"
+          - "Info.plist"
+      - path: Shared
+    info:
+      path: TwentyFourDefend/Info.plist
+    dependencies:
+      - target: TwentyFourDefendPacketTunnel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.24defend.app
+        CODE_SIGN_ENTITLEMENTS: TwentyFourDefend/TwentyFourDefend.entitlements
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+
+  TwentyFourDefendPacketTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: TwentyFourDefendPacketTunnel
+        excludes:
+          - "*.entitlements"
+          - "Info.plist"
+      - path: Shared
+    info:
+      path: TwentyFourDefendPacketTunnel/Info.plist
+    dependencies: []
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.24defend.app.packet-tunnel
+        CODE_SIGN_ENTITLEMENTS: TwentyFourDefendPacketTunnel/TwentyFourDefendPacketTunnel.entitlements
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        SKIP_INSTALL: true
