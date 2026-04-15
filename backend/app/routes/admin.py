@@ -3,9 +3,12 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 
+from pydantic import BaseModel
+
 from app.auth import require_api_key
 from app.bloom import generate_bloom_filter
 from app.domain_service import delete_domain, put_domains_bulk, scan_by_type
+from app.ingestion.runner import run_blacklist_ingestion, run_whitelist_discovery
 from app.models import BulkAddRequest, DomainEntry, EntryType
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_api_key)])
@@ -34,6 +37,29 @@ async def remove_domain(domain: str) -> dict:
 async def list_domains(entry_type: EntryType, partner_id: str | None = None) -> list[DomainEntry]:
     """List all domains of a given type."""
     return await scan_by_type(entry_type, partner_id)
+
+
+class WhitelistDiscoveryRequest(BaseModel):
+    root_domain: str
+    partner_id: str
+
+
+@router.post("/ingest/blacklists")
+async def ingest_blacklists() -> dict:
+    """Fetch all public threat feeds and add new domains to blacklist.
+
+    Sources: OpenPhish, PhishTank, URLhaus, Phishing.Army
+    """
+    return await run_blacklist_ingestion()
+
+
+@router.post("/ingest/whitelist-discovery")
+async def discover_whitelist(req: WhitelistDiscoveryRequest) -> dict:
+    """Auto-discover subdomains for a partner via Certificate Transparency logs.
+
+    Provide the root domain (e.g., brou.com.uy) and partner ID.
+    """
+    return await run_whitelist_discovery(req.root_domain, req.partner_id)
 
 
 @router.get("/bloom-filter")

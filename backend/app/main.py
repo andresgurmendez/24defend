@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.agent import load_whitelist_cache
 from app.db import ensure_table
 from app.routes.admin import router as admin_router
 from app.routes.check import router as check_router
@@ -10,6 +11,7 @@ from app.routes.check import router as check_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await ensure_table()
+    await load_whitelist_cache()
     yield
 
 

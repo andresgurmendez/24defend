@@ -8,7 +8,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private let logger = Logger(subsystem: "com.24defend.app.packet-tunnel", category: "dns")
     private let upstreamDNS = "1.1.1.1"
     private var recentNotifications: Set<String> = []  // debounce: one notification per domain
+    private var runtimeBlacklist: Set<String> = []    // domains confirmed bad by backend
     private var httpListener: NWListener?
+    private var httpsRejectListener: NWListener?
 
     // MARK: - Tunnel lifecycle
 
@@ -65,6 +67,18 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         guard let query = DNSPacket.parseQuery(from: parsed.dnsPayload) else { return }
 
         let domain = query.domainName
+
+        // Check runtime blacklist first (domains confirmed bad by backend)
+        if runtimeBlacklist.contains(domain.lowercased()) {
+            logger.warning("BLOCKED (runtime) \(domain)")
+            BlockLog.append(BlockEvent(domain: domain, reason: "Confirmed by 24Defend cloud", severity: .red))
+            sendNotification(domain: domain, reason: "Confirmed phishing site", severity: .red)
+            let dnsResp = DNSPacket.buildBlockResponse(for: query)
+            let ipResp  = IPPacket.buildResponse(original: parsed, dnsResponse: dnsResp)
+            packetFlow.writePackets([ipResp], withProtocols: [proto])
+            return
+        }
+
         let result = DomainChecker.check(domain: domain)
 
         switch result {
@@ -79,9 +93,27 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         case .warned(let reason):
             logger.info("WARNED \(domain) — \(reason)")
-            BlockLog.append(BlockEvent(domain: domain, reason: reason, severity: .yellow))
-            sendNotification(domain: domain, reason: reason, severity: .yellow)
-            forwardToUpstream(query: query, original: parsed, proto: proto)
+            // Hold DNS — check backend first, then decide to block or forward
+            Task {
+                let backendVerdict = await APIClient.checkDomain(domain)
+
+                if backendVerdict?.verdict == "block" {
+                    // Backend confirmed it's bad — block it
+                    self.logger.warning("ESCALATED to BLOCK: \(domain)")
+                    self.runtimeBlacklist.insert(domain.lowercased())
+                    BlockLog.append(BlockEvent(domain: domain, reason: backendVerdict?.reason ?? reason, severity: .red))
+                    self.sendNotification(domain: domain, reason: backendVerdict?.reason ?? reason, severity: .red)
+
+                    let dnsResp = DNSPacket.buildBlockResponse(for: query)
+                    let ipResp = IPPacket.buildResponse(original: parsed, dnsResponse: dnsResp)
+                    self.packetFlow.writePackets([ipResp], withProtocols: [proto])
+                } else {
+                    // Backend says allow/warn or unreachable — forward with warning
+                    BlockLog.append(BlockEvent(domain: domain, reason: reason, severity: .yellow))
+                    self.sendNotification(domain: domain, reason: reason, severity: .yellow)
+                    self.forwardToUpstream(query: query, original: parsed, proto: proto)
+                }
+            }
 
         case .allowed:
             forwardToUpstream(query: query, original: parsed, proto: proto)
@@ -147,6 +179,27 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 }
             }
             httpListener?.start(queue: .global(qos: .userInteractive))
+
+            // Also listen on 443 and immediately reject — forces Safari to fall back to HTTP faster
+            let tlsParams = NWParameters.tcp
+            tlsParams.requiredLocalEndpoint = NWEndpoint.hostPort(host: "127.0.0.1", port: 443)
+            httpsRejectListener = try NWListener(using: tlsParams)
+            httpsRejectListener?.newConnectionHandler = { [weak self] conn in
+                self?.logger.info("HTTPS connection received — rejecting to force HTTP fallback")
+                conn.start(queue: .global())
+                conn.cancel()
+            }
+            httpsRejectListener?.stateUpdateHandler = { [weak self] state in
+                switch state {
+                case .ready:
+                    self?.logger.info("HTTPS reject listener ready on 127.0.0.1:443")
+                case .failed(let error):
+                    self?.logger.error("HTTPS reject listener failed: \(error.localizedDescription)")
+                default:
+                    break
+                }
+            }
+            httpsRejectListener?.start(queue: .global(qos: .userInteractive))
         } catch {
             logger.error("Failed to start block page server: \(error.localizedDescription)")
         }
@@ -257,9 +310,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     // MARK: - Notifications
 
-    private func sendNotification(domain: String, reason: String, severity: EventSeverity) {
-        // Debounce: only one notification per domain per session
-        guard !recentNotifications.contains(domain) else { return }
+    private func sendNotification(domain: String, reason: String, severity: EventSeverity, force: Bool = false) {
+        // Debounce: only one notification per domain per session (unless forced by escalation)
+        if !force {
+            guard !recentNotifications.contains(domain) else { return }
+        }
         recentNotifications.insert(domain)
 
         let content = UNMutableNotificationContent()

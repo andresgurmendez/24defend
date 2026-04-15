@@ -20,8 +20,20 @@ async def check_domain(req: DomainCheckRequest):
     """
     domain = req.domain.lower().strip(".")
 
-    # 1. Direct lookup
-    entry = await lookup_domain(domain)
+    # 1. Direct lookup — try exact match, then strip www, then walk up parent domains
+    candidates = [domain]
+    if domain.startswith("www."):
+        candidates.append(domain[4:])
+    # Also check parent domains (e.g., "sub.evil.com" → "evil.com")
+    parts = domain.split(".")
+    for i in range(1, len(parts) - 1):
+        candidates.append(".".join(parts[i:]))
+
+    entry = None
+    for candidate in candidates:
+        entry = await lookup_domain(candidate)
+        if entry:
+            break
 
     if entry:
         if entry.entry_type == EntryType.blacklist:
