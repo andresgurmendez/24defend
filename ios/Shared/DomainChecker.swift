@@ -78,7 +78,7 @@ public final class DomainChecker {
         let matches = whitelistTree.search(baseDomain, maxDistance: 3)
 
         for (match, distance) in matches {
-            guard distance > 0 else { continue } // skip exact matches
+            guard distance > 0 else { continue }
             let maxLen = max(baseDomain.count, match.count)
             guard maxLen > 0 else { continue }
             let similarity = 1.0 - (Double(distance) / Double(maxLen))
@@ -87,7 +87,14 @@ public final class DomainChecker {
             }
         }
 
-        // 5. Silent allow
+        // 5. Brand rule engine: catches brand impersonation that Levenshtein misses
+        //    e.g., "actualizacion-brou-2026.com", "itau-verificar-cuenta.xyz"
+        let risk = BrandRuleEngine.assess(normalized)
+        if risk.isHighRisk {
+            return .warned(reason: "Suspicious: \(risk.signals.first ?? "brand impersonation detected")")
+        }
+
+        // 6. Silent allow
         return .allowed
     }
 }

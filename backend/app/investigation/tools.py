@@ -264,6 +264,31 @@ def domain_heuristics(domain: str) -> str:
     if total > 0 and unique / total > 0.85:
         signals.append("High character entropy (random-looking)")
 
+    # Brand impersonation check (Uruguay-specific)
+    brands = {"brou", "bancorepublica", "itau", "santander", "scotiabank",
+              "bbva", "hsbc", "prex", "oca", "mercadopago", "mercadolibre",
+              "pedidosya", "abitab", "redpagos", "antel", "movistar", "claro",
+              "bps", "dgi", "gub", "bcu"}
+    phish_words = {"actualizar", "actualizacion", "verificar", "verificacion",
+                   "confirmar", "seguridad", "bloqueo", "suspension", "urgente",
+                   "homebanking", "transferencia", "clave", "pin", "token",
+                   "tarjeta", "cuenta", "login", "acceso", "desbloquear"}
+
+    name_part = d.split(".")[0] if "." in d else d
+    found_brands = [b for b in brands if b in d]
+    found_phish = [w for w in phish_words if w in d]
+
+    if found_brands:
+        signals.append(f"Contains brand keyword: {', '.join(found_brands)}")
+    if found_phish:
+        signals.append(f"Contains phishing vocabulary: {', '.join(found_phish[:3])}")
+    if found_brands and found_phish:
+        signals.append("CRITICAL: Brand + phishing word combination")
+
+    import re
+    if found_brands and re.search(r"202[4-9]", d):
+        signals.append("Brand + year pattern (common in phishing campaigns)")
+
     if not signals:
         return f"No suspicious string characteristics found for {domain}."
 
