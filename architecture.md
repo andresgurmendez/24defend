@@ -2,7 +2,7 @@
 
 Anti-phishing link protection for mobile devices, targeting Latin America.
 
-24Defend intercepts DNS queries on iOS devices using a NetworkExtension packet tunnel, checks domains against layered on-device filters (bloom filters, BK-tree fuzzy matching, brand rule engine, hardcoded lists), and escalates uncertain domains to a backend investigation agent powered by AWS Bedrock Claude Sonnet. The system ingests public threat feeds daily and generates compact bloom filters that the iOS app downloads for offline protection.
+24Defend intercepts DNS queries on iOS devices using a NetworkExtension packet tunnel, checks domains against a 7-layer on-device pipeline (bloom filters, BK-tree fuzzy matching, brand rule engine, ML classifier, hardcoded lists), and escalates uncertain domains to a backend investigation agent powered by AWS Bedrock Claude Sonnet. The system ingests public threat feeds daily, generates compact bloom filters that the iOS app downloads for offline protection, and maintains an ML pipeline for training lightweight phishing classifiers from synthetic and real-world data.
 
 ---
 
@@ -11,11 +11,12 @@ Anti-phishing link protection for mobile devices, targeting Latin America.
 1. [System Architecture](#system-architecture)
 2. [iOS App](#ios-app)
 3. [Backend API](#backend-api)
-4. [Data Flow: Phishing Link Clicked](#data-flow-phishing-link-clicked)
-5. [Infrastructure](#infrastructure)
-6. [Configuration](#configuration)
-7. [Security Model](#security-model)
-8. [Testing](#testing)
+4. [ML Pipeline](#ml-pipeline)
+5. [Data Flow: Phishing Link Clicked](#data-flow-phishing-link-clicked)
+6. [Infrastructure](#infrastructure)
+7. [Configuration](#configuration)
+8. [Security Model](#security-model)
+9. [Testing](#testing)
 
 ---
 
@@ -30,7 +31,7 @@ Anti-phishing link protection for mobile devices, targeting Latin America.
 |  | (SwiftUI)        |   | Extension        |  |
 |  |                  |   |                  |  |
 |  | - Dashboard      |   | - DNS intercept  |  |
-|  | - Block log      |   | - 6-layer check  |  |
+|  | - Block log      |   | - 7-layer check  |  |
 |  | - VPN toggle     |   | - Block page     |  |
 |  | - Notifications  |   |   HTTP server    |  |
 |  +--------+---------+   +-------+----------+  |
@@ -80,7 +81,7 @@ Anti-phishing link protection for mobile devices, targeting Latin America.
 | TwentyFourDefend | Application | Main app: dashboard, settings, block log |
 | TwentyFourDefendPacketTunnel | App Extension | NEPacketTunnelProvider DNS filter |
 
-Both targets share code in the `Shared/` directory (APIClient, BloomFilter, BloomFilterStore, BKTree, DomainChecker, BrandRuleEngine, BlockLog).
+Both targets share code in the `Shared/` directory (APIClient, BloomFilter, BloomFilterStore, BKTree, DomainChecker, BrandRuleEngine, BlockLog). The ML classifier (Layer 6) is trained and exported but not yet integrated into the Swift codebase.
 
 ### PacketTunnelProvider DNS Interception Flow
 
@@ -99,7 +100,7 @@ All DNS queries (port 53)
    Extract domain name from DNS query
          |
          v
-   Run 6-layer check (see below)
+   Run 7-layer check (see below)
          |
     +----+----+
     |         |
@@ -118,14 +119,14 @@ All DNS queries (port 53)
 
 When a domain is blocked, the DNS response resolves to `127.0.0.1`. A local HTTP server running on port 80 inside the tunnel extension serves a Spanish-language block page ("Sitio bloqueado -- 24Defend"). An HTTPS listener on port 443 immediately rejects connections to force Safari to fall back to HTTP.
 
-### 6-Layer Check Order
+### 7-Layer Check Order
 
 Each DNS query runs through these checks in order. The first match wins.
 
 ```
 Layer 1: Runtime blacklist (in-memory Set<String>)
    |  Domains confirmed bad by the backend during this session.
-   |  Source: backend /check verdict = "block" (added after Layer 6 escalation).
+   |  Source: backend /check verdict = "block" (added after Layer 7 escalation).
    |  Result: BLOCK (red notification)
    v
 Layer 2: Bloom filter whitelist
@@ -156,11 +157,18 @@ Layer 5: Brand Rule Engine (BrandRuleEngine.swift)
    |    - Year patterns (e.g., brou-2026, itau2025)
    |  Returns RiskAssessment with score (0.0-1.0) and signal list.
    |  If score >= 0.7 (high risk) -> WARN
-   |
-   |  If WARN from Layer 4 or 5: hold the DNS query and call backend API (Layer 6)
    v
-Layer 6: Backend API call (POST /check)
-   |  Only reached for WARN verdicts from Layers 4/5.
+Layer 6: ML classifier (not yet integrated into iOS -- trained and ready)
+   |  Logistic regression, 1 KB model, 20 features extracted from domain string.
+   |  AUC 0.9974 on synthetic validation set.
+   |  All features computable from the domain string alone, no network calls.
+   |  Runs in <1ms. Model weights shipped as JSON, updated via CDN.
+   |  If score >= 0.5 -> WARN
+   |
+   |  If WARN from Layer 4, 5, or 6: hold the DNS query and call backend API (Layer 7)
+   v
+Layer 7: Backend API call (POST /check)
+   |  Only reached for WARN verdicts from Layers 4/5/6.
    |  Async: DNS query is held while waiting for response.
    |  If backend returns "block": escalate to BLOCK, add to runtime blacklist.
    |  If backend returns "allow"/"warn" or is unreachable: ALLOW with yellow warning.
@@ -424,6 +432,120 @@ On startup, the same ingestion + bloom generation runs as a non-blocking backgro
 
 ---
 
+## ML Pipeline
+
+A lightweight ML classifier trained to detect phishing domains from string-level features alone, designed for on-device inference with no network calls.
+
+### Synthetic Data Generation
+
+Training data is generated synthetically using 7 attack patterns derived from LatAm/Uruguay phishing research (`ml/generate_synthetic.py`):
+
+| Pattern | Description | Example |
+|---------|-------------|---------|
+| 1. Brand + action | Brand name combined with phishing action word | `brou-verificar.xyz` |
+| 2. TLD swap | Official `.com.uy` brand on a different TLD | `itau.top`, `brou-uy.click` |
+| 3. Homoglyphs | Character substitution (0 for o, 1 for i/l, etc.) | `br0u.com.uy`, `1tau.com` |
+| 4. Subdomain trick | Brand buried in subdomain of attacker domain | `brou.com.uy.secure-login.xyz` |
+| 5. Urgency combo | Brand + urgency vocabulary + optional year | `alerta-brou-suspension.top` |
+| 6. Year + brand | Year appended to brand | `brou-2026.xyz` |
+| 7. Service subdomain | Mimics real service subdomains | `homebanking-brou.net` |
+
+Default dataset: 1,500 phishing domains per pattern (10,500 total) + 7,000 legitimate domains = 17,500 domains. Legitimate domains include Uruguayan media, e-commerce, tech, social, education, and random plausible names.
+
+### Feature Extraction
+
+20 features extracted from the domain string alone (`ml/features.py`), all computable in <1ms with no network calls:
+
+| # | Feature | Description |
+|---|---------|-------------|
+| 1 | `domain_length` | Total length of the domain string |
+| 2 | `name_length` | Length without TLD |
+| 3 | `dot_count` | Number of dots |
+| 4 | `hyphen_count` | Number of hyphens in the name part |
+| 5 | `digit_count` | Number of digits in the name part |
+| 6 | `digit_ratio` | Ratio of digits to name length |
+| 7 | `unique_char_ratio` | Character diversity (entropy proxy) |
+| 8 | `consonant_ratio` | Ratio of consonants to name length |
+| 9 | `max_consecutive_consonants` | Longest consonant run |
+| 10 | `has_brand` | 1 if contains a UY brand keyword (22 brands) |
+| 11 | `brand_count` | Number of brand keywords found |
+| 12 | `has_phishing_word` | 1 if contains a Spanish phishing vocabulary word |
+| 13 | `phishing_word_count` | Number of phishing words found |
+| 14 | `brand_phishing_combo` | 1 if both brand + phishing word present |
+| 15 | `has_year_pattern` | 1 if contains 202X |
+| 16 | `brand_year_combo` | 1 if brand + year pattern |
+| 17 | `tld_risk` | 1.0 = high risk, 0.0 = low risk, 0.5 = neutral |
+| 18 | `brand_on_risky_tld` | 1 if brand keyword on a high-risk TLD |
+| 19 | `has_homoglyph` | 1 if digits could be letter substitutions near a brand |
+| 20 | `subdomain_depth` | Number of dots beyond the base domain |
+
+### Models
+
+Two models are trained (`ml/train.py`), both using scikit-learn:
+
+| Model | Algorithm | Size | Purpose | AUC |
+|-------|-----------|------|---------|-----|
+| Logistic regression | `LogisticRegression` (C=1.0) | 1 KB | On-device (Layer 6) | 0.9974 |
+| Gradient boosting | `GradientBoostingClassifier` (100 trees, depth 4) | 238 KB | Backend enrichment | 0.9974+ |
+
+Both models are exported as JSON (`ml/models/`) containing weights, coefficients, and tree structures for portable inference in Swift or Python without scikit-learn.
+
+**Top features by importance** (GBM feature importances): `brand_phishing_combo`, `has_phishing_word`, `phishing_word_count`, `has_brand`, `brand_on_risky_tld`, `tld_risk`, `digit_count`, `hyphen_count`, `domain_length`, `has_year_pattern`.
+
+### Metrics
+
+Evaluated on a held-out 20% test split (stratified):
+
+- **AUC-ROC**: 0.9974
+- **5-fold CV AUC**: 0.9974
+- **Precision (phishing)**: >0.99
+- **Recall (phishing)**: >0.99
+- **Confusion matrix**: very low false positive and false negative rates
+
+### Caveats
+
+The model is trained entirely on synthetic data. While the attack patterns are based on real-world LatAm phishing research, performance on real-world traffic may differ. Real-world validation is planned via 1% active learning sampling (see below).
+
+### Active Learning Loop (Planned)
+
+To improve the model with real-world data:
+
+```
+Device traffic (DNS queries)
+   |
+   v
+1% of domains not matched by Layers 1-5 are sampled
+   |
+   v
+Sampled domains sent to backend (POST /check)
+   |
+   v
+LangGraph investigation agent produces verdict
+   |
+   v
+Verdict stored as labeled training data
+   |
+   v
+Monthly retrain: synthetic + real-world labels
+   |
+   v
+Updated model weights (JSON) shipped via CDN
+   |
+   v
+iOS app downloads new weights on next bloom filter refresh
+```
+
+This creates a feedback loop where the backend agent's investigations produce high-quality labels for domains the on-device model is uncertain about, progressively improving coverage of real attack patterns not represented in synthetic data.
+
+### Retraining Schedule
+
+- **Frequency**: Monthly, or ad-hoc when new attack patterns are identified
+- **Data**: Synthetic dataset + accumulated real-world labels from active learning
+- **Output**: Updated `phishing_classifier_logistic.json` (1 KB) pushed to CDN
+- **Validation**: AUC must exceed 0.99 on held-out test set before shipping
+
+---
+
 ## Data Flow: Phishing Link Clicked
 
 Step-by-step walkthrough of what happens when a user taps a phishing link (e.g., `brou-seguro.com` impersonating BROU bank):
@@ -463,9 +585,9 @@ If the domain is NOT in the bloom blacklist but is similar to a whitelisted doma
    a. Not in hardcoded blacklist
    b. Not in hardcoded whitelist
    c. BK-tree search: "br0u.com.uy" vs "brou.com.uy" -> distance 1, similarity 90%
-   d. Result: WARN (Layer 5 Brand Rule Engine skipped, already WARN)
+   d. Result: WARN (Layers 5-6 skipped, already WARN)
    |
-8. Layer 6: Hold DNS, call POST /check with domain "br0u.com.uy"
+8. Layer 7: Hold DNS, call POST /check with domain "br0u.com.uy"
    |
 9. Backend: not in DynamoDB -> run LangGraph agent
    a. Agent calls domain_heuristics: "Contains brand name: brou"
@@ -586,7 +708,7 @@ The system is designed to minimize data leaving the device:
 
 1. **Bloom filter downloads** (startup + daily): the app fetches two binary bloom filter files from the backend. These are generic filter files, not user-specific. No user data is sent.
 
-2. **Domain checks** (Layer 5 only): a domain name is sent to the backend ONLY when the on-device heuristics produce a WARN verdict (Levenshtein similarity to a known official domain). This represents a small fraction of all DNS queries. The request contains only the domain name -- no user identifier, no URL path, no page content, no browsing history.
+2. **Domain checks** (Layer 7 only): a domain name is sent to the backend ONLY when the on-device heuristics produce a WARN verdict (Levenshtein similarity, brand rule engine, or ML classifier). This represents a small fraction of all DNS queries. The request contains only the domain name -- no user identifier, no URL path, no page content, no browsing history.
 
 3. **No traffic routing**: despite using a VPN configuration, no user traffic is routed through external servers. The tunnel only intercepts DNS queries on port 53. All other traffic passes through normally. Allowed DNS queries are forwarded directly to Cloudflare's public resolver (1.1.1.1).
 
@@ -707,7 +829,7 @@ testpaths = tests
 |   |   +-- APIClient.swift          # HTTP client for POST /check
 |   |   +-- BloomFilter.swift        # Bloom filter + BloomFilterStore
 |   |   +-- BKTree.swift             # BK-tree for fuzzy string matching
-|   |   +-- DomainChecker.swift      # 6-layer domain check logic
+|   |   +-- DomainChecker.swift      # 7-layer domain check logic
 |   |   +-- BrandRuleEngine.swift   # Uruguay brand impersonation detector
 |   |   +-- BlockLog.swift           # Persisted block event log
 |   +-- TwentyFourDefend/            # Main app target
@@ -721,6 +843,16 @@ testpaths = tests
 |   |   +-- PacketTunnelProvider.swift # DNS interception + block page server
 |   |   +-- DNSPacket.swift           # DNS/IP/UDP packet parsing + construction
 |   +-- DISTRIBUTION.md              # Apple Developer setup and distribution guide
+|
++-- ml/
+|   +-- generate_synthetic.py        # Synthetic phishing domain generator (7 attack patterns)
+|   +-- features.py                  # 20-feature extraction from domain strings
+|   +-- train.py                     # Train logistic + GBM classifiers
+|   +-- models/
+|   |   +-- phishing_classifier_logistic.json  # 1 KB, for on-device (Layer 6)
+|   |   +-- phishing_classifier_gbm.json       # 238 KB, for backend enrichment
+|   +-- data/                        # Generated training data (not committed)
+|       +-- synthetic_domains.csv
 |
 +-- README.md
 +-- architecture.md                  # This file
