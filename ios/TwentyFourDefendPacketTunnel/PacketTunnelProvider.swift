@@ -41,6 +41,17 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             self.startBlockPageServer()
             self.readPackets()
             completionHandler(nil)
+
+            // Refresh bloom filters in background (non-blocking)
+            Task {
+                if BloomFilterStore.shared.needsRefresh {
+                    self.logger.info("Refreshing bloom filters from backend...")
+                    await BloomFilterStore.shared.refresh()
+                    self.logger.info("Bloom filters refreshed")
+                } else {
+                    self.logger.info("Bloom filters are fresh, skipping refresh")
+                }
+            }
         }
     }
 
@@ -67,8 +78,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         guard let query = DNSPacket.parseQuery(from: parsed.dnsPayload) else { return }
 
         let domain = query.domainName
+        let store = BloomFilterStore.shared
 
-        // Check runtime blacklist first (domains confirmed bad by backend)
+        // 1. Runtime blacklist (domains confirmed bad by backend this session)
         if runtimeBlacklist.contains(domain.lowercased()) {
             logger.warning("BLOCKED (runtime) \(domain)")
             BlockLog.append(BlockEvent(domain: domain, reason: "Confirmed by 24Defend cloud", severity: .red))
@@ -79,6 +91,24 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
 
+        // 2. Bloom filter: whitelist → silent allow (no further checks)
+        if store.isWhitelisted(domain) {
+            forwardToUpstream(query: query, original: parsed, proto: proto)
+            return
+        }
+
+        // 3. Bloom filter: blacklist → instant block (no API call needed)
+        if store.isBlacklisted(domain) {
+            logger.warning("BLOCKED (bloom) \(domain)")
+            BlockLog.append(BlockEvent(domain: domain, reason: "Known phishing domain", severity: .red))
+            sendNotification(domain: domain, reason: "\(domain) is a known phishing site", severity: .red)
+            let dnsResp = DNSPacket.buildBlockResponse(for: query)
+            let ipResp  = IPPacket.buildResponse(original: parsed, dnsResponse: dnsResp)
+            packetFlow.writePackets([ipResp], withProtocols: [proto])
+            return
+        }
+
+        // 4. On-device heuristic check (Levenshtein, hardcoded lists)
         let result = DomainChecker.check(domain: domain)
 
         switch result {

@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     bloom_filter_size: int = 100_000  # expected number of entries
     bloom_filter_fp_rate: float = 0.001  # 0.1% false positive rate
     api_key: str = "dev-api-key-change-me"  # simple auth for admin endpoints
+    bloom_dir: str = "/app/data/bloom"  # directory for persisted bloom filter files
 
     model_config = {"env_prefix": "DEFEND_"}
 
