@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.agent import investigate_domain
+from app.investigation.graph import investigate_domain
 from app.domain_service import lookup_domain
 from app.models import DomainCheckRequest, DomainCheckResponse, EntryType, Verdict
 

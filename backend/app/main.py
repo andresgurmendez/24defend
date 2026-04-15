@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -17,12 +18,8 @@ from app.routes.check import router as check_router
 logger = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await ensure_table()
-    await load_whitelist_cache()
-
-    # Run initial ingestion + bloom generation on startup
+async def _startup_background_tasks():
+    """Run ingestion + bloom generation in background so the server starts fast."""
     try:
         logger.info("Running startup blacklist ingestion...")
         await run_blacklist_ingestion()
@@ -34,6 +31,15 @@ async def lifespan(app: FastAPI):
         await generate_and_store_bloom_filters()
     except Exception:
         logger.exception("Startup bloom filter generation failed")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await ensure_table()
+    await load_whitelist_cache()
+
+    # Start ingestion in background — don't block server startup
+    asyncio.create_task(_startup_background_tasks())
 
     start_scheduler()
 
