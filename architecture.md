@@ -2,7 +2,7 @@
 
 Anti-phishing link protection for mobile devices, targeting Latin America.
 
-24Defend intercepts DNS queries on iOS devices using a NetworkExtension packet tunnel, checks domains against layered on-device filters (bloom filters, BK-tree fuzzy matching, hardcoded lists), and escalates uncertain domains to a backend investigation agent powered by AWS Bedrock Claude Sonnet. The system ingests public threat feeds daily and generates compact bloom filters that the iOS app downloads for offline protection.
+24Defend intercepts DNS queries on iOS devices using a NetworkExtension packet tunnel, checks domains against layered on-device filters (bloom filters, BK-tree fuzzy matching, brand rule engine, hardcoded lists), and escalates uncertain domains to a backend investigation agent powered by AWS Bedrock Claude Sonnet. The system ingests public threat feeds daily and generates compact bloom filters that the iOS app downloads for offline protection.
 
 ---
 
@@ -30,7 +30,7 @@ Anti-phishing link protection for mobile devices, targeting Latin America.
 |  | (SwiftUI)        |   | Extension        |  |
 |  |                  |   |                  |  |
 |  | - Dashboard      |   | - DNS intercept  |  |
-|  | - Block log      |   | - 5-layer check  |  |
+|  | - Block log      |   | - 6-layer check  |  |
 |  | - VPN toggle     |   | - Block page     |  |
 |  | - Notifications  |   |   HTTP server    |  |
 |  +--------+---------+   +-------+----------+  |
@@ -80,7 +80,7 @@ Anti-phishing link protection for mobile devices, targeting Latin America.
 | TwentyFourDefend | Application | Main app: dashboard, settings, block log |
 | TwentyFourDefendPacketTunnel | App Extension | NEPacketTunnelProvider DNS filter |
 
-Both targets share code in the `Shared/` directory (APIClient, BloomFilter, BloomFilterStore, BKTree, DomainChecker, BlockLog).
+Both targets share code in the `Shared/` directory (APIClient, BloomFilter, BloomFilterStore, BKTree, DomainChecker, BrandRuleEngine, BlockLog).
 
 ### PacketTunnelProvider DNS Interception Flow
 
@@ -99,7 +99,7 @@ All DNS queries (port 53)
    Extract domain name from DNS query
          |
          v
-   Run 5-layer check (see below)
+   Run 6-layer check (see below)
          |
     +----+----+
     |         |
@@ -118,14 +118,14 @@ All DNS queries (port 53)
 
 When a domain is blocked, the DNS response resolves to `127.0.0.1`. A local HTTP server running on port 80 inside the tunnel extension serves a Spanish-language block page ("Sitio bloqueado -- 24Defend"). An HTTPS listener on port 443 immediately rejects connections to force Safari to fall back to HTTP.
 
-### 5-Layer Check Order
+### 6-Layer Check Order
 
 Each DNS query runs through these checks in order. The first match wins.
 
 ```
 Layer 1: Runtime blacklist (in-memory Set<String>)
    |  Domains confirmed bad by the backend during this session.
-   |  Source: backend /check verdict = "block" (added after Layer 4 escalation).
+   |  Source: backend /check verdict = "block" (added after Layer 6 escalation).
    |  Result: BLOCK (red notification)
    v
 Layer 2: Bloom filter whitelist
@@ -138,18 +138,29 @@ Layer 3: Bloom filter blacklist
    |  Checks base domain against known-bad domains.
    |  If match: BLOCK immediately (red notification), no API call.
    v
-Layer 4: DomainChecker (on-device heuristics + BK-tree)
+Layer 4: BK-tree Levenshtein fuzzy match
    |  a) Exact match against hardcoded blacklist Set -> BLOCK
    |  b) Subdomain of hardcoded blacklist entry -> BLOCK
    |  c) Exact/subdomain match against hardcoded whitelist -> ALLOW
    |  d) BK-tree Levenshtein search (max distance 3, similarity >= 70%)
    |     against whitelist base domains -> WARN
-   |  e) No match -> ALLOW
-   |
-   |  If WARN: hold the DNS query and call backend API (Layer 5)
    v
-Layer 5: Backend API call (POST /check)
-   |  Only reached for WARN verdicts from Layer 4.
+Layer 5: Brand Rule Engine (BrandRuleEngine.swift)
+   |  On-device brand impersonation detection. Runs in <1ms, no network.
+   |  Checks for:
+   |    - Uruguay brand keywords (25 brands: banks, fintech, telecom, govt)
+   |    - Spanish phishing vocabulary (40+ words)
+   |    - Brand + phishing word combinations (strongest signal)
+   |    - TLD risk scoring (high-risk vs low-risk TLDs)
+   |    - Structural signals (hyphens, digits, domain length)
+   |    - Year patterns (e.g., brou-2026, itau2025)
+   |  Returns RiskAssessment with score (0.0-1.0) and signal list.
+   |  If score >= 0.7 (high risk) -> WARN
+   |
+   |  If WARN from Layer 4 or 5: hold the DNS query and call backend API (Layer 6)
+   v
+Layer 6: Backend API call (POST /check)
+   |  Only reached for WARN verdicts from Layers 4/5.
    |  Async: DNS query is held while waiting for response.
    |  If backend returns "block": escalate to BLOCK, add to runtime blacklist.
    |  If backend returns "allow"/"warn" or is unreachable: ALLOW with yellow warning.
@@ -184,6 +195,39 @@ A BK-tree (Burkhard-Keller tree) built from whitelist base domains for efficient
 - **Distance metric**: Levenshtein edit distance (optimized single-row algorithm)
 - **Query**: find all whitelist domains within edit distance 3 of the queried domain
 - **Threshold**: similarity >= 70% triggers a WARN verdict
+
+### BrandRuleEngine
+
+On-device brand impersonation detector (`Shared/BrandRuleEngine.swift`) that catches phishing domains Levenshtein matching misses -- for example, `actualizacion-brou-2026.com` does not have a low edit distance to `brou.com.uy`, but it clearly impersonates the brand.
+
+**Scoring components** (additive, capped at 1.0):
+
+| Signal | Score | Example |
+|--------|-------|---------|
+| Brand keyword present (not alone) | +0.35 | `brou` in `brou-seguro.com` |
+| Phishing vocabulary word | +0.20 | `verificar` in `itau-verificar.xyz` |
+| Brand + phishing word combo | +0.25 | `brou` + `actualizacion` |
+| High-risk TLD | +0.15 | `.xyz`, `.top`, `.click`, `.tk` |
+| Brand on high-risk TLD | +0.15 | `brou` on `.xyz` |
+| Multiple hyphens (>=2) | +0.10 | `brou-seguro-login.com` |
+| Many digits (>=3) | +0.05 | `brou123.com` |
+| Long name (>25 chars) | +0.05 | Very long domain names |
+| Brand + year pattern | +0.15 | `brou-2026`, `itau2025` |
+
+**Thresholds**: score >= 0.7 is high risk (triggers WARN verdict), score >= 0.4 is suspicious.
+
+**Brand keywords** (25 Uruguay brands):
+- Banks: brou, bancorepublica, itau, santander, scotiabank, bbva, hsbc, heritage, bandes
+- Fintech/payments: prex, oca, visa, mastercard, mercadopago, mercadolibre
+- Services: pedidosya, abitab, redpagos
+- Telecom: antel, movistar, claro
+- Government: bps, dgi, agesic, gub
+
+**Phishing vocabulary** (40+ Spanish words): action words (actualizar, verificar, confirmar, desbloquear), urgency (urgente, suspension, bloqueo, vencido), credential terms (homebanking, clave, token, tarjeta), security theater (seguro, proteccion, alerta), login patterns (login, signin, ingreso).
+
+**TLD classification**:
+- High-risk: xyz, top, click, buzz, gq, ml, cf, tk, pw, cc, club, icu, cam, link, online, site, info, and others
+- Low-risk (Uruguay): com.uy, uy, gub.uy, edu.uy, org.uy, mil.uy
 
 ### Notifications
 
@@ -299,7 +343,7 @@ The agent loops: call LLM -> if LLM requests tool calls, execute them -> feed re
 
 | Tool | What it does | Data source |
 |------|-------------|-------------|
-| `domain_heuristics` | String analysis: length, hyphens, digits, TLD risk, subdomain depth, entropy | Pure computation |
+| `domain_heuristics` | String analysis: length, hyphens, digits, TLD risk, subdomain depth, entropy, brand keyword detection, Spanish phishing vocabulary, brand+phishing combos, year patterns | Pure computation |
 | `levenshtein_similarity` | Edit distance to whitelist domains; detects typosquatting | Whitelist from DynamoDB |
 | `dns_lookup` | Domain age, registrar, nameservers via RDAP | rdap.org (free, no API key) |
 | `ssl_certificate_check` | Certificate issuer, age, SANs, validity | Direct TLS connection |
@@ -376,7 +420,7 @@ APScheduler runs a daily job at 03:00 UTC:
 1. Ingest all public blacklist feeds
 2. Regenerate both bloom filters and write to disk
 
-On startup, the same ingestion + bloom generation runs as a background task (non-blocking).
+On startup, the same ingestion + bloom generation runs as a non-blocking background task via `asyncio.create_task()`. The server starts accepting requests immediately without waiting for ingestion to complete. The table and whitelist cache are loaded synchronously during lifespan startup; only the slower feed ingestion and bloom filter generation are deferred.
 
 ---
 
@@ -419,9 +463,9 @@ If the domain is NOT in the bloom blacklist but is similar to a whitelisted doma
    a. Not in hardcoded blacklist
    b. Not in hardcoded whitelist
    c. BK-tree search: "br0u.com.uy" vs "brou.com.uy" -> distance 1, similarity 90%
-   d. Result: WARN
+   d. Result: WARN (Layer 5 Brand Rule Engine skipped, already WARN)
    |
-8. Layer 5: Hold DNS, call POST /check with domain "br0u.com.uy"
+8. Layer 6: Hold DNS, call POST /check with domain "br0u.com.uy"
    |
 9. Backend: not in DynamoDB -> run LangGraph agent
    a. Agent calls domain_heuristics: "Contains brand name: brou"
@@ -470,6 +514,19 @@ docker compose exec api python -m seed
 The seed script populates:
 - 8 blacklist domains (known phishing: brou-seguro.com, itau-homebanking.net, etc.)
 - 15 whitelist domains with partner_ids (brou, itau, general institutions)
+
+Seed Uruguay institution data (discovers subdomains via CT logs):
+```bash
+python3 scripts/seed_uruguay.py http://localhost:9147
+```
+
+The Uruguay seed script (`backend/scripts/seed_uruguay.py`) registers 24 institutions with their root domains, then discovers subdomains via Certificate Transparency logs (crt.sh). This produces approximately 652 whitelist domains covering:
+- **Banks**: BROU, Itau, Santander, Scotiabank, BBVA, HSBC, Heritage, Bandes, Citibank
+- **Payments/fintech**: OCA, Prex, MercadoPago, MercadoLibre
+- **Payment networks**: Abitab, RedPagos
+- **Telecom**: Antel, Movistar, Claro
+- **E-commerce**: PedidosYa
+- **Government**: GUB, BPS, DGI, BCU, AGESIC
 
 ### Production (planned)
 
@@ -636,6 +693,8 @@ testpaths = tests
 |   |   +-- test_bloom.py            # 26 tests
 |   |   +-- test_ingestion.py        # 32 tests
 |   +-- seed.py                      # Seed script for local dev
+|   +-- scripts/
+|   |   +-- seed_uruguay.py          # Seed 24 UY institutions + CT log discovery
 |   +-- Dockerfile                   # python:3.12-slim + uvicorn
 |   +-- docker-compose.yml           # API + DynamoDB local
 |   +-- requirements.txt             # Production dependencies
@@ -648,7 +707,8 @@ testpaths = tests
 |   |   +-- APIClient.swift          # HTTP client for POST /check
 |   |   +-- BloomFilter.swift        # Bloom filter + BloomFilterStore
 |   |   +-- BKTree.swift             # BK-tree for fuzzy string matching
-|   |   +-- DomainChecker.swift      # 5-layer domain check logic
+|   |   +-- DomainChecker.swift      # 6-layer domain check logic
+|   |   +-- BrandRuleEngine.swift   # Uruguay brand impersonation detector
 |   |   +-- BlockLog.swift           # Persisted block event log
 |   +-- TwentyFourDefend/            # Main app target
 |   |   +-- TwentyFourDefendApp.swift
