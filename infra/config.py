@@ -2,7 +2,7 @@
 
 ENVIRONMENTS = {
     "dev": {
-        "account": "487542878969",
+        "account": "081856108753",
         "region": "us-east-1",
         "fargate_cpu": 256,
         "fargate_memory": 512,

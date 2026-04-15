@@ -18,6 +18,7 @@ from aws_cdk import (
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
     aws_logs as logs,
+    aws_ecr_assets,
 )
 
 
@@ -66,10 +67,7 @@ class DefendStack(Stack):
             "DomainsTable",
             table_name="24defend-domains",
             partition_key=dynamodb.Attribute(
-                name="pk", type=dynamodb.AttributeType.STRING
-            ),
-            sort_key=dynamodb.Attribute(
-                name="sk", type=dynamodb.AttributeType.STRING
+                name="domain", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             time_to_live_attribute="ttl",
@@ -83,7 +81,7 @@ class DefendStack(Stack):
             self,
             "EcrRepo",
             repository_name=f"{prefix}-backend",
-            removal_policy=RemovalPolicy.RETAIN,
+            removal_policy=RemovalPolicy.RETAIN if is_prod else RemovalPolicy.DESTROY,
             lifecycle_rules=[
                 ecr.LifecycleRule(
                     max_image_count=20,
@@ -106,21 +104,11 @@ class DefendStack(Stack):
         # ---------------------------------------------------------------
         # CloudFront distribution for bloom filter downloads
         # ---------------------------------------------------------------
-        oai = cloudfront.OriginAccessIdentity(
-            self,
-            "BloomOAI",
-            comment=f"OAI for {prefix} bloom filter bucket",
-        )
-        bloom_bucket.grant_read(oai)
-
         distribution = cloudfront.Distribution(
             self,
             "BloomCdn",
             default_behavior=cloudfront.BehaviorOptions(
-                origin=origins.S3Origin(
-                    bloom_bucket,
-                    origin_access_identity=oai,
-                ),
+                origin=origins.S3BucketOrigin.with_origin_access_control(bloom_bucket),
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                 cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
             ),
@@ -171,6 +159,12 @@ class DefendStack(Stack):
 
         # DynamoDB access
         table.grant_read_write_data(task_role)
+        task_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["dynamodb:ListTables", "dynamodb:DescribeTable"],
+                resources=["*"],
+            )
+        )
 
         # S3 access for bloom filters
         bloom_bucket.grant_read_write(task_role)
@@ -203,7 +197,7 @@ class DefendStack(Stack):
                 subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS,
             ),
             task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
-                image=ecs.ContainerImage.from_ecr_repository(ecr_repo, tag="latest"),
+                image=ecs.ContainerImage.from_asset("../backend", platform=cdk.aws_ecr_assets.Platform.LINUX_AMD64),
                 container_port=8080,
                 task_role=task_role,
                 environment={

@@ -30,10 +30,15 @@ async def get_s3() -> AsyncIterator:
 
 
 async def ensure_table():
-    """Create the DynamoDB table if it doesn't exist (for local dev)."""
+    """Create the DynamoDB table if it doesn't exist (for local dev).
+
+    In production (no dynamodb_endpoint), the table is provisioned by CDK.
+    """
+    if not settings.dynamodb_endpoint:
+        return  # CDK-managed table, skip creation
+
     kwargs = {"region_name": settings.aws_region}
-    if settings.dynamodb_endpoint:
-        kwargs["endpoint_url"] = settings.dynamodb_endpoint
+    kwargs["endpoint_url"] = settings.dynamodb_endpoint
 
     async with _session.client("dynamodb", **kwargs) as client:
         tables = (await client.list_tables())["TableNames"]

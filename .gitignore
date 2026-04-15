@@ -31,3 +31,4 @@ ios/TwentyFourDefend.xcodeproj/
 aws.sh
 ml/.venv/
 serper.conf
+infra/cdk.out/
