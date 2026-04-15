@@ -29,3 +29,4 @@ Thumbs.db
 *.swp
 ios/TwentyFourDefend.xcodeproj/
 aws.sh
+ml/.venv/
