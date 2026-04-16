@@ -21,16 +21,18 @@ logger = logging.getLogger(__name__)
 async def _startup_background_tasks():
     """Run ingestion + bloom generation in background so the server starts fast."""
     try:
-        logger.info("Running startup blacklist ingestion...")
-        await run_blacklist_ingestion()
+        logger.warning("INGESTION START: fetching public threat feeds...")
+        stats = await run_blacklist_ingestion()
+        logger.warning(f"INGESTION DONE: {stats}")
     except Exception:
-        logger.exception("Startup blacklist ingestion failed")
+        logger.exception("INGESTION FAILED")
 
     try:
-        logger.info("Running startup bloom filter generation...")
-        await generate_and_store_bloom_filters()
+        logger.warning("BLOOM START: generating bloom filters...")
+        result = await generate_and_store_bloom_filters()
+        logger.warning(f"BLOOM DONE: {result}")
     except Exception:
-        logger.exception("Startup bloom filter generation failed")
+        logger.exception("BLOOM FAILED")
 
 
 @asynccontextmanager

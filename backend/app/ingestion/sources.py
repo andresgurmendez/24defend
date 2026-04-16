@@ -69,7 +69,7 @@ async def fetch_openphish() -> list[str]:
     domains = set()
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
             resp = await client.get(url)
             if resp.status_code != 200:
                 logger.warning(f"OpenPhish returned {resp.status_code}")
@@ -96,7 +96,7 @@ async def fetch_urlhaus() -> list[str]:
     domains = set()
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
             resp = await client.get(url)
             if resp.status_code != 200:
                 logger.warning(f"URLhaus returned {resp.status_code}")
@@ -128,7 +128,7 @@ async def fetch_phishing_army() -> list[str]:
     domains = set()
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
             resp = await client.get(url)
             if resp.status_code != 200:
                 logger.warning(f"Phishing.Army returned {resp.status_code}")
@@ -156,7 +156,7 @@ async def fetch_crtsh_subdomains(root_domain: str) -> list[str]:
     subdomains = set()
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
             resp = await client.get(url)
             if resp.status_code != 200:
                 logger.warning(f"crt.sh returned {resp.status_code} for {root_domain}")

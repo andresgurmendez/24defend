@@ -25,14 +25,11 @@ async def run_blacklist_ingestion() -> dict:
 
     logger.info(f"Total unique domains across all sources: {len(all_domains)}")
 
-    # Filter out domains already in our database
-    new_domains = []
-    for domain in all_domains:
-        existing = await lookup_domain(domain)
-        if not existing:
-            new_domains.append(domain)
-
-    logger.info(f"New domains to add: {len(new_domains)} (skipped {len(all_domains) - len(new_domains)} existing)")
+    # Skip dedup on large batches — DynamoDB batch_writer handles overwrites
+    # Checking 28K domains one-by-one takes minutes and isn't worth it
+    # for idempotent blacklist entries
+    new_domains = list(all_domains)
+    logger.info(f"Domains to upsert: {len(new_domains)} (skipping individual dedup for performance)")
 
     if new_domains:
         # Batch insert in chunks of 25 (DynamoDB batch limit)
