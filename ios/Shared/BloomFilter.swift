@@ -118,7 +118,7 @@ public final class BloomFilterStore {
 
     /// Download fresh bloom filters from the backend. Call on app launch and daily.
     public func refresh() async {
-        let apiKey = "dev-api-key-change-me" // TODO: move to config
+        let apiKey = "dev-api-key-24defend" // TODO: move to config / fetch from server
         let baseURL = APIClient.baseURL
 
         async let wlData = fetchBloom(url: "\(baseURL)/admin/bloom-filter/whitelist", apiKey: apiKey)
