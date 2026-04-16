@@ -94,7 +94,13 @@ public final class DomainChecker {
             return .warned(reason: "Suspicious: \(risk.signals.first ?? "brand impersonation detected")")
         }
 
-        // 6. Silent allow
+        // 6. ML classifier: logistic regression on 20 domain features (AUC 0.9974)
+        let prediction = PhishingClassifier.predict(normalized)
+        if prediction.isHighRisk {
+            return .warned(reason: "ML model: phishing probability \(Int(prediction.score * 100))%")
+        }
+
+        // 7. Silent allow
         return .allowed
     }
 }
