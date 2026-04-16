@@ -118,6 +118,65 @@ class DefendStack(Stack):
         )
 
         # ---------------------------------------------------------------
+        # S3 bucket for website (landing page + privacy policy)
+        # ---------------------------------------------------------------
+        www_bucket = s3.Bucket(
+            self,
+            "WwwBucket",
+            bucket_name=f"24defend-www-{env_name}",
+            removal_policy=RemovalPolicy.DESTROY if not is_prod else RemovalPolicy.RETAIN,
+            website_index_document="index.html",
+            website_error_document="index.html",
+            public_read_access=True,
+            block_public_access=s3.BlockPublicAccess(
+                block_public_acls=False,
+                block_public_policy=False,
+                ignore_public_acls=False,
+                restrict_public_buckets=False,
+            ),
+        )
+
+        # Deploy website files to S3
+        from aws_cdk import aws_s3_deployment as s3deploy
+        s3deploy.BucketDeployment(
+            self,
+            "WwwDeploy",
+            sources=[s3deploy.Source.asset("../www")],
+            destination_bucket=www_bucket,
+        )
+
+        # CloudFront for website
+        www_domain = env_config.get("api_domain", "").replace("api.", "")  # 24defend.com
+        www_cert = None
+        if www_domain:
+            www_cert = acm.Certificate(
+                self,
+                "WwwCert",
+                domain_name=www_domain,
+                subject_alternative_names=[f"www.{www_domain}"],
+                validation=acm.CertificateValidation.from_dns(),
+            )
+
+        www_distribution = cloudfront.Distribution(
+            self,
+            "WwwCdn",
+            default_behavior=cloudfront.BehaviorOptions(
+                origin=origins.S3StaticWebsiteOrigin(www_bucket),
+                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+            ),
+            domain_names=[www_domain, f"www.{www_domain}"] if www_cert else None,
+            certificate=www_cert,
+            default_root_object="index.html",
+            comment=f"{prefix} website",
+        )
+
+        CfnOutput(self, "WwwUrl", value=f"https://{www_distribution.distribution_domain_name}")
+        CfnOutput(self, "WwwBucketName", value=www_bucket.bucket_name)
+        if www_domain:
+            CfnOutput(self, "WwwDomain", value=f"https://{www_domain}")
+
+        # ---------------------------------------------------------------
         # Secrets Manager — API keys
         # ---------------------------------------------------------------
         api_key_secret = secretsmanager.Secret(

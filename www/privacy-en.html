@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — 24Defend</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0F172A;
+    color: #E2E8F0;
+    line-height: 1.7;
+    padding: 24px;
+}
+.container { max-width: 720px; margin: 0 auto; }
+h1 { color: #fff; font-size: 28px; margin-bottom: 8px; }
+h2 { color: #3B82F6; font-size: 20px; margin: 32px 0 12px; }
+h3 { color: #94A3B8; font-size: 16px; margin: 24px 0 8px; }
+p, li { color: #CBD5E1; margin-bottom: 12px; }
+ul { padding-left: 24px; }
+.date { color: #64748B; font-size: 14px; margin-bottom: 32px; }
+a { color: #3B82F6; }
+.lang { text-align: right; margin-bottom: 16px; }
+.lang a { color: #94A3B8; text-decoration: none; margin-left: 12px; }
+.lang a.active { color: #3B82F6; font-weight: 600; }
+.footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid #1E293B; color: #64748B; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="lang">
+    <a class="active" href="privacy-en.html">English</a>
+    <a href="privacy-es.html">Espanol</a>
+</div>
+
+<h1>Privacy Policy</h1>
+<p class="date">Last updated: April 16, 2026</p>
+
+<p>24Defend ("we", "the app") is an anti-phishing application that blocks fraudulent links on your mobile device. This policy describes what data we collect, how we use it, and how we protect it.</p>
+
+<h2>1. How 24Defend works</h2>
+<p>24Defend creates a local VPN configuration on your device that intercepts DNS queries (the step where your device looks up a website address). This VPN operates locally on your device — it does not route your internet traffic through external servers.</p>
+<p>When we detect a fraudulent domain, we block the DNS query before the page loads and notify you.</p>
+
+<h2>2. Data we collect</h2>
+
+<h3>2.1 Blocked or suspicious domain names</h3>
+<p>When 24Defend blocks a link or detects a suspicious domain, we send the base domain name (e.g., "fake-site.com") to our servers to improve threat detection. This helps us identify new phishing campaigns and protect all users.</p>
+<p><strong>We do not collect allowed domains.</strong> Your normal browsing history never leaves your device.</p>
+
+<h3>2.2 Aggregated session statistics</h3>
+<p>We collect aggregated counters about app performance: total DNS queries checked, number of threats blocked, and performance metrics. This data does not contain domain names or browsing information.</p>
+
+<h3>2.3 Anonymous device identifier</h3>
+<p>We generate a random unique identifier (UUID) for your device. This identifier is not linked to your Apple ID, phone number, email address, or any personal information. It is used solely to group telemetry events from the same device.</p>
+
+<h3>2.4 Data we do NOT collect</h3>
+<ul>
+<li>Browsing history (websites you normally visit)</li>
+<li>Web page content</li>
+<li>Passwords or credentials</li>
+<li>Geographic location</li>
+<li>Contacts, photos, or other personal data</li>
+<li>Apple ID or Apple account information</li>
+<li>User IP address</li>
+</ul>
+
+<h2>3. How we use the data</h2>
+<ul>
+<li><strong>Detection improvement:</strong> Blocked domains feed our threat database, protecting all users on the network.</li>
+<li><strong>Performance:</strong> Aggregated statistics help us optimize the app.</li>
+<li><strong>Institutional reports:</strong> We provide aggregated, anonymized data to financial institutions about phishing attempts targeting their customers.</li>
+</ul>
+
+<h2>4. Who we share data with</h2>
+<p>We do not sell data to third parties. Data may be shared with:</p>
+<ul>
+<li><strong>Partner financial institutions:</strong> Aggregated, anonymized data about fraudulent domains impersonating their brand (e.g., "47 phishing domains targeting BROU were blocked this month").</li>
+<li><strong>Infrastructure providers:</strong> Amazon Web Services (AWS) hosts our servers. Data is stored encrypted.</li>
+</ul>
+
+<h2>5. Data security</h2>
+<ul>
+<li>All communications between the app and our servers use HTTPS (TLS encryption).</li>
+<li>Data is stored in Amazon DynamoDB with encryption at rest.</li>
+<li>Telemetry events are automatically deleted after 90 days.</li>
+<li>Data access is restricted to the 24Defend technical team.</li>
+</ul>
+
+<h2>6. Data retention</h2>
+<ul>
+<li>Telemetry events (blocked domains): 90 days</li>
+<li>Fraudulent domain database: indefinite (necessary for protection)</li>
+<li>Device identifier: while the app is installed</li>
+</ul>
+
+<h2>7. Your rights</h2>
+<p>You can:</p>
+<ul>
+<li>Uninstall the app at any time to stop sending data</li>
+<li>Disable VPN protection from within the app</li>
+<li>Contact us to request deletion of your data</li>
+</ul>
+
+<h2>8. VPN usage</h2>
+<p>24Defend uses Apple's NetworkExtension API (NEPacketTunnelProvider) to create a local VPN configuration. This VPN:</p>
+<ul>
+<li>Only intercepts DNS queries (port 53)</li>
+<li>Does not route your web traffic through external servers</li>
+<li>Does not log or inspect web page content</li>
+<li>Operates entirely within your device for DNS filtering</li>
+</ul>
+
+<h2>9. Changes to this policy</h2>
+<p>We may update this policy periodically. We will notify you of significant changes through the app.</p>
+
+<h2>10. Contact</h2>
+<p>For privacy questions or data requests:</p>
+<p>Email: <a href="mailto:privacy@24defend.com">privacy@24defend.com</a></p>
+<p>Web: <a href="https://24defend.com">24defend.com</a></p>
+
+<div class="footer">
+<p>24Defend — Anti-phishing protection for Latin America</p>
+<p>This policy complies with Apple App Store guidelines and Uruguay's data protection law (Ley 18.331).</p>
+</div>
+
+</div>
+</body>
+</html>
