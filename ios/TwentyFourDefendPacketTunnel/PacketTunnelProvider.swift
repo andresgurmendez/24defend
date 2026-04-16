@@ -11,6 +11,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private var runtimeBlacklist: Set<String> = []    // domains confirmed bad by backend
     private var httpListener: NWListener?
     private var httpsRejectListener: NWListener?
+    private var refreshTimer: DispatchSourceTimer?
 
     // MARK: - Tunnel lifecycle
 
@@ -42,26 +43,43 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             self.readPackets()
             completionHandler(nil)
 
-            // Refresh bloom filters + classifier weights in background (non-blocking)
-            Task {
-                if BloomFilterStore.shared.needsRefresh {
-                    self.logger.info("Refreshing bloom filters from backend...")
-                    await BloomFilterStore.shared.refresh()
-                    self.logger.info("Bloom filters refreshed")
-                } else {
-                    self.logger.info("Bloom filters are fresh, skipping refresh")
-                }
-
-                self.logger.info("Refreshing classifier weights from backend...")
-                await PhishingClassifier.refreshWeights()
-                self.logger.info("Classifier weights refreshed")
-            }
+            // Initial refresh + schedule daily repeating refresh
+            Task { await self.refreshData() }
+            self.startRefreshTimer()
         }
     }
 
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
         logger.info("Stopping tunnel (reason: \(String(describing: reason)))")
+        refreshTimer?.cancel()
+        refreshTimer = nil
         completionHandler()
+    }
+
+    // MARK: - Periodic data refresh
+
+    private func startRefreshTimer() {
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        timer.schedule(deadline: .now() + 86400, repeating: 86400) // every 24 hours
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.logger.info("Daily refresh triggered")
+            Task { await self.refreshData() }
+        }
+        timer.resume()
+        refreshTimer = timer
+    }
+
+    private func refreshData() async {
+        if BloomFilterStore.shared.needsRefresh {
+            logger.info("Refreshing bloom filters...")
+            await BloomFilterStore.shared.refresh()
+            logger.info("Bloom filters refreshed")
+        }
+
+        logger.info("Refreshing classifier weights...")
+        await PhishingClassifier.refreshWeights()
+        logger.info("Classifier weights refreshed")
     }
 
     // MARK: - Packet loop
