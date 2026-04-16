@@ -12,6 +12,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private var httpListener: NWListener?
     private var httpsRejectListener: NWListener?
     private var refreshTimer: DispatchSourceTimer?
+    private let dnsCache = DNSCache(maxSize: 2000, ttl: 3600) // 2K entries, 1 hour TTL
 
     // MARK: - Tunnel lifecycle
 
@@ -80,6 +81,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         logger.info("Refreshing classifier weights...")
         await PhishingClassifier.refreshWeights()
         logger.info("Classifier weights refreshed")
+
+        // Clear verdict cache so new bloom/classifier data takes effect
+        dnsCache.clear()
+        logger.info("DNS verdict cache cleared")
     }
 
     // MARK: - Packet loop
@@ -100,10 +105,25 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         guard let query = DNSPacket.parseQuery(from: parsed.dnsPayload) else { return }
 
         let domain = query.domainName
+
+        // 0. Local verdict cache — skip all layers for recently seen domains
+        if let cached = dnsCache.get(domain) {
+            switch cached {
+            case .allow:
+                forwardToUpstream(query: query, original: parsed, proto: proto)
+            case .block:
+                let dnsResp = DNSPacket.buildBlockResponse(for: query)
+                let ipResp = IPPacket.buildResponse(original: parsed, dnsResponse: dnsResp)
+                packetFlow.writePackets([ipResp], withProtocols: [proto])
+            }
+            return
+        }
+
         let store = BloomFilterStore.shared
 
         // 1. Runtime blacklist (domains confirmed bad by backend this session)
         if runtimeBlacklist.contains(domain.lowercased()) {
+            dnsCache.set(domain, verdict: .block)
             logger.warning("BLOCKED (runtime) \(domain)")
             BlockLog.append(BlockEvent(domain: domain, reason: "Confirmed by 24Defend cloud", severity: .red))
             sendNotification(domain: domain, reason: "Confirmed phishing site", severity: .red)
@@ -115,12 +135,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         // 2. Bloom filter: whitelist → silent allow (no further checks)
         if store.isWhitelisted(domain) {
+            dnsCache.set(domain, verdict: .allow)
             forwardToUpstream(query: query, original: parsed, proto: proto)
             return
         }
 
         // 3. Bloom filter: blacklist → instant block (no API call needed)
         if store.isBlacklisted(domain) {
+            dnsCache.set(domain, verdict: .block)
             logger.warning("BLOCKED (bloom) \(domain)")
             BlockLog.append(BlockEvent(domain: domain, reason: "Known phishing domain", severity: .red))
             sendNotification(domain: domain, reason: "\(domain) is a known phishing site", severity: .red)
@@ -130,11 +152,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
 
-        // 4. On-device heuristic check (Levenshtein, hardcoded lists)
+        // 4-6. On-device heuristic check (Levenshtein, brand rules, ML classifier)
         let result = DomainChecker.check(domain: domain)
 
         switch result {
         case .blocked(let reason):
+            dnsCache.set(domain, verdict: .block)
             logger.warning("BLOCKED \(domain) — \(reason)")
             BlockLog.append(BlockEvent(domain: domain, reason: reason, severity: .red))
             sendNotification(domain: domain, reason: reason, severity: .red)
@@ -150,7 +173,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 let backendVerdict = await APIClient.checkDomain(domain)
 
                 if backendVerdict?.verdict == "block" {
-                    // Backend confirmed it's bad — block it
+                    self.dnsCache.set(domain, verdict: .block)
                     self.logger.warning("ESCALATED to BLOCK: \(domain)")
                     self.runtimeBlacklist.insert(domain.lowercased())
                     BlockLog.append(BlockEvent(domain: domain, reason: backendVerdict?.reason ?? reason, severity: .red))
@@ -160,7 +183,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     let ipResp = IPPacket.buildResponse(original: parsed, dnsResponse: dnsResp)
                     self.packetFlow.writePackets([ipResp], withProtocols: [proto])
                 } else {
-                    // Backend says allow/warn or unreachable — forward with warning
+                    // Don't cache warned domains — re-check next time in case backend updates
                     BlockLog.append(BlockEvent(domain: domain, reason: reason, severity: .yellow))
                     self.sendNotification(domain: domain, reason: reason, severity: .yellow)
                     self.forwardToUpstream(query: query, original: parsed, proto: proto)
@@ -168,6 +191,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             }
 
         case .allowed:
+            dnsCache.set(domain, verdict: .allow)
             forwardToUpstream(query: query, original: parsed, proto: proto)
         }
     }
