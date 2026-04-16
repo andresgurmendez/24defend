@@ -42,7 +42,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             self.readPackets()
             completionHandler(nil)
 
-            // Refresh bloom filters in background (non-blocking)
+            // Refresh bloom filters + classifier weights in background (non-blocking)
             Task {
                 if BloomFilterStore.shared.needsRefresh {
                     self.logger.info("Refreshing bloom filters from backend...")
@@ -51,6 +51,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 } else {
                     self.logger.info("Bloom filters are fresh, skipping refresh")
                 }
+
+                self.logger.info("Refreshing classifier weights from backend...")
+                await PhishingClassifier.refreshWeights()
+                self.logger.info("Classifier weights refreshed")
             }
         }
     }

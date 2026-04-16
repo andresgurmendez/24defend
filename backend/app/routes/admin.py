@@ -102,6 +102,47 @@ async def get_blacklist_bloom() -> Response:
     )
 
 
+@router.get("/model/classifier")
+async def get_classifier_weights() -> dict:
+    """Serve the on-device phishing classifier weights.
+
+    The iOS app downloads this on launch and caches it.
+    ~200 bytes JSON — coefficients + intercept for logistic regression.
+    """
+    import json
+    import os
+
+    # Serve from disk if available (generated during training)
+    model_path = os.path.join(settings.bloom_dir, "phishing_classifier.json")
+    if os.path.exists(model_path):
+        with open(model_path) as f:
+            return json.load(f)
+
+    # Fallback: hardcoded current weights
+    return {
+        "version": 1,
+        "type": "logistic_regression",
+        "feature_names": [
+            "domain_length", "name_length", "dot_count", "hyphen_count",
+            "digit_count", "digit_ratio", "unique_char_ratio", "consonant_ratio",
+            "max_consecutive_consonants", "has_brand", "brand_count",
+            "has_phishing_word", "phishing_word_count", "brand_phishing_combo",
+            "has_year_pattern", "brand_year_combo", "tld_risk",
+            "brand_on_risky_tld", "has_homoglyph", "subdomain_depth",
+        ],
+        "coefficients": [
+            0.1515754896293396, -0.17687062190652342, 0.4251215061805213,
+            0.6522107335346615, 8.720099093690225, 1.168831306654816,
+            1.6534057467548318, 0.48358291642889606, 1.0413817120788775,
+            2.2560370434233863, 2.52623892330409, -1.481912543680876,
+            0.5269276493085449, 1.8739844777853785, 0.012820477554654004,
+            0.012820477554654004, 4.674802613911455, 2.0929952382316026,
+            1.9273927957533727, 0.9272854399688297,
+        ],
+        "intercept": -11.079669393324433,
+    }
+
+
 @router.get("/bloom-filter/stats")
 async def get_bloom_stats() -> dict:
     """Stats about both bloom filters without downloading them."""

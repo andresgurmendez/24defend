@@ -5,32 +5,28 @@ import Foundation
 /// 20 features, 1 KB model. Runs in <1ms.
 public final class PhishingClassifier {
 
-    // MARK: - Model weights (from ml/models/phishing_classifier_logistic.json)
+    // MARK: - Model weights
 
-    private static let coefficients: [Double] = [
-        0.1515754896293396,    // domain_length
-       -0.17687062190652342,   // name_length
-        0.4251215061805213,    // dot_count
-        0.6522107335346615,    // hyphen_count
-        8.720099093690225,     // digit_count
-        1.168831306654816,     // digit_ratio
-        1.6534057467548318,    // unique_char_ratio
-        0.48358291642889606,   // consonant_ratio
-        1.0413817120788775,    // max_consecutive_consonants
-        2.2560370434233863,    // has_brand
-        2.52623892330409,      // brand_count
-       -1.481912543680876,     // has_phishing_word
-        0.5269276493085449,    // phishing_word_count
-        1.8739844777853785,    // brand_phishing_combo
-        0.012820477554654004,  // has_year_pattern
-        0.012820477554654004,  // brand_year_combo
-        4.674802613911455,     // tld_risk
-        2.0929952382316026,    // brand_on_risky_tld
-        1.9273927957533727,    // has_homoglyph
-        0.9272854399688297,    // subdomain_depth
+    /// Hardcoded fallback weights (from ml/models/phishing_classifier_logistic.json)
+    private static let defaultCoefficients: [Double] = [
+        0.1515754896293396, -0.17687062190652342, 0.4251215061805213,
+        0.6522107335346615, 8.720099093690225, 1.168831306654816,
+        1.6534057467548318, 0.48358291642889606, 1.0413817120788775,
+        2.2560370434233863, 2.52623892330409, -1.481912543680876,
+        0.5269276493085449, 1.8739844777853785, 0.012820477554654004,
+        0.012820477554654004, 4.674802613911455, 2.0929952382316026,
+        1.9273927957533727, 0.9272854399688297,
     ]
+    private static let defaultIntercept: Double = -11.079669393324433
 
-    private static let intercept: Double = -11.079669393324433
+    /// CDN-loaded weights (overrides defaults when available)
+    private static var loadedCoefficients: [Double]?
+    private static var loadedIntercept: Double?
+    private static var modelVersion: Int = 0
+
+    /// Active weights (CDN or fallback)
+    private static var coefficients: [Double] { loadedCoefficients ?? defaultCoefficients }
+    private static var intercept: Double { loadedIntercept ?? defaultIntercept }
 
     // MARK: - Feature vocabulary (mirrors ml/features.py and BrandRuleEngine)
 
@@ -56,6 +52,78 @@ public final class PhishingClassifier {
         let logit = zip(features, coefficients).reduce(intercept) { $0 + $1.0 * $1.1 }
         let score = sigmoid(logit)
         return Prediction(score: score, isPhishing: score >= 0.5, isHighRisk: score >= 0.7)
+    }
+
+    // MARK: - CDN weight loading
+
+    private static let suiteName = "group.com.24defend.app"
+    private static let cacheKey = "classifier_weights"
+
+    /// Download latest model weights from backend. Call on app/tunnel start.
+    public static func refreshWeights() async {
+        // Try CDN first
+        if let weights = await fetchWeights() {
+            loadedCoefficients = weights.coefficients
+            loadedIntercept = weights.intercept
+            modelVersion = weights.version
+            saveToCache(weights)
+            return
+        }
+        // Fall back to cached
+        if let cached = loadFromCache() {
+            loadedCoefficients = cached.coefficients
+            loadedIntercept = cached.intercept
+            modelVersion = cached.version
+        }
+        // Otherwise use hardcoded defaults
+    }
+
+    private struct ModelWeights: Codable {
+        let version: Int
+        let coefficients: [Double]
+        let intercept: Double
+    }
+
+    private static func fetchWeights() async -> ModelWeights? {
+        guard let url = URL(string: "\(APIClient.baseURL)/admin/model/classifier") else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        // No API key needed — model weights aren't secret
+        let config = URLSessionConfiguration.default
+        config.connectionProxyDictionary = [:]
+        let session = URLSession(configuration: config)
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+            let decoded = try JSONDecoder().decode(ModelWeightsResponse.self, from: data)
+            guard decoded.coefficients.count == defaultCoefficients.count else { return nil }
+            return ModelWeights(
+                version: decoded.version ?? 0,
+                coefficients: decoded.coefficients,
+                intercept: decoded.intercept
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    private struct ModelWeightsResponse: Codable {
+        let version: Int?
+        let coefficients: [Double]
+        let intercept: Double
+    }
+
+    private static func saveToCache(_ weights: ModelWeights) {
+        guard let defaults = UserDefaults(suiteName: suiteName),
+              let data = try? JSONEncoder().encode(weights) else { return }
+        defaults.set(data, forKey: cacheKey)
+    }
+
+    private static func loadFromCache() -> ModelWeights? {
+        guard let defaults = UserDefaults(suiteName: suiteName),
+              let data = defaults.data(forKey: cacheKey) else { return nil }
+        return try? JSONDecoder().decode(ModelWeights.self, from: data)
     }
 
     // MARK: - Feature extraction
