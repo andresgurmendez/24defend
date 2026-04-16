@@ -179,17 +179,23 @@ def _max_consecutive_consonants(s: str) -> int:
 
 
 def _detect_homoglyphs(name: str) -> bool:
-    """Detect potential homoglyph substitutions."""
-    # Check if digits appear in positions that would make sense as letter substitutions
-    # 0 near brand letters that have 'o', 1 near 'i' or 'l'
+    """Detect potential homoglyph substitutions.
+
+    Returns True if replacing digits (0→o, 1→i/l) in the name would create
+    a brand match that doesn't exist in the original string.
+    """
+    # Only worth checking if name contains digits that could be substitutions
+    if "0" not in name and "1" not in name:
+        return False
+
+    test1 = name.replace("0", "o").replace("1", "i")
+    test2 = name.replace("0", "o").replace("1", "l")
+
     for brand in BRANDS:
+        # Skip brands already present in the original (not a homoglyph)
         if brand in name:
-            continue  # exact match, not a homoglyph
-        # Check if replacing 0→o or 1→i/l would create a brand match
-        test = name.replace("0", "o").replace("1", "i")
-        if any(b in test for b in BRANDS):
-            return True
-        test2 = name.replace("0", "o").replace("1", "l")
-        if any(b in test2 for b in BRANDS):
+            continue
+        # Check if substitution reveals a brand
+        if brand in test1 or brand in test2:
             return True
     return False

@@ -166,12 +166,16 @@ public final class PhishingClassifier {
     }
 
     private static func detectHomoglyphs(_ name: String) -> Bool {
+        // Only worth checking if name contains digits that could be substitutions
+        guard name.contains("0") || name.contains("1") else { return false }
+
         let test1 = name.replacingOccurrences(of: "0", with: "o")
                         .replacingOccurrences(of: "1", with: "i")
         let test2 = name.replacingOccurrences(of: "0", with: "o")
                         .replacingOccurrences(of: "1", with: "l")
         for brand in brands {
-            if !name.contains(brand) && (test1.contains(brand) || test2.contains(brand)) {
+            if name.contains(brand) { continue }
+            if test1.contains(brand) || test2.contains(brand) {
                 return true
             }
         }
