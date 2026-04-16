@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Politica de Privacidad — 24Defend</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0F172A;
+    color: #E2E8F0;
+    line-height: 1.7;
+    padding: 24px;
+}
+.container { max-width: 720px; margin: 0 auto; }
+h1 { color: #fff; font-size: 28px; margin-bottom: 8px; }
+h2 { color: #3B82F6; font-size: 20px; margin: 32px 0 12px; }
+h3 { color: #94A3B8; font-size: 16px; margin: 24px 0 8px; }
+p, li { color: #CBD5E1; margin-bottom: 12px; }
+ul { padding-left: 24px; }
+.date { color: #64748B; font-size: 14px; margin-bottom: 32px; }
+a { color: #3B82F6; }
+.footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid #1E293B; color: #64748B; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Politica de Privacidad</h1>
+<p class="date">Ultima actualizacion: 16 de abril de 2026</p>
+
+<p>24Defend ("nosotros", "la aplicacion") es una aplicacion de proteccion contra phishing que bloquea enlaces fraudulentos en tu dispositivo movil. Esta politica describe que datos recopilamos, como los usamos y como los protegemos.</p>
+
+<h2>1. Como funciona 24Defend</h2>
+<p>24Defend crea una configuracion VPN local en tu dispositivo que intercepta las consultas DNS (el paso donde tu dispositivo busca la direccion de un sitio web). Esta VPN opera localmente en tu dispositivo — no enruta tu trafico de internet a traves de servidores externos.</p>
+<p>Cuando detectamos un dominio fraudulento, bloqueamos la consulta DNS antes de que la pagina cargue y te notificamos.</p>
+
+<h2>2. Datos que recopilamos</h2>
+
+<h3>2.1 Nombres de dominios bloqueados o sospechosos</h3>
+<p>Cuando 24Defend bloquea un enlace o detecta un dominio sospechoso, enviamos el nombre del dominio base (por ejemplo, "sitio-falso.com") a nuestros servidores para mejorar la deteccion de amenazas. Esto nos ayuda a identificar nuevas campanas de phishing y proteger a todos los usuarios.</p>
+<p><strong>No recopilamos dominios permitidos.</strong> Tu historial de navegacion normal nunca sale de tu dispositivo.</p>
+
+<h3>2.2 Estadisticas de sesion agregadas</h3>
+<p>Recopilamos contadores agregados sobre el rendimiento de la aplicacion: cantidad total de consultas DNS verificadas, cantidad de amenazas bloqueadas, y metricas de rendimiento. Estos datos no contienen nombres de dominios ni informacion de navegacion.</p>
+
+<h3>2.3 Identificador anonimo del dispositivo</h3>
+<p>Generamos un identificador unico aleatorio (UUID) para tu dispositivo. Este identificador no esta vinculado a tu Apple ID, numero de telefono, correo electronico ni ninguna informacion personal. Se utiliza unicamente para agrupar eventos de telemetria del mismo dispositivo.</p>
+
+<h3>2.4 Datos que NO recopilamos</h3>
+<ul>
+<li>Historial de navegacion (sitios web que visitas normalmente)</li>
+<li>Contenido de paginas web</li>
+<li>Contrasenas o credenciales</li>
+<li>Ubicacion geografica</li>
+<li>Contactos, fotos u otros datos personales</li>
+<li>Apple ID o informacion de la cuenta de Apple</li>
+<li>Direccion IP del usuario</li>
+</ul>
+
+<h2>3. Como usamos los datos</h2>
+<ul>
+<li><strong>Mejora de deteccion:</strong> Los dominios bloqueados alimentan nuestra base de datos de amenazas, protegiendo a todos los usuarios de la red.</li>
+<li><strong>Rendimiento:</strong> Las estadisticas agregadas nos ayudan a optimizar la aplicacion.</li>
+<li><strong>Reportes institucionales:</strong> Proporcionamos datos agregados y anonimizados a instituciones financieras sobre intentos de phishing dirigidos a sus clientes.</li>
+</ul>
+
+<h2>4. Con quien compartimos los datos</h2>
+<p>No vendemos datos a terceros. Los datos pueden ser compartidos con:</p>
+<ul>
+<li><strong>Instituciones financieras asociadas:</strong> Datos agregados y anonimizados sobre dominios fraudulentos que imitan su marca (por ejemplo, "se bloquearon 47 dominios de phishing dirigidos a BROU este mes").</li>
+<li><strong>Proveedores de infraestructura:</strong> Amazon Web Services (AWS) aloja nuestros servidores. Los datos se almacenan cifrados.</li>
+</ul>
+
+<h2>5. Seguridad de los datos</h2>
+<ul>
+<li>Todas las comunicaciones entre la aplicacion y nuestros servidores usan HTTPS (cifrado TLS).</li>
+<li>Los datos se almacenan en Amazon DynamoDB con cifrado en reposo.</li>
+<li>Los eventos de telemetria se eliminan automaticamente despues de 90 dias.</li>
+<li>El acceso a los datos esta restringido al equipo tecnico de 24Defend.</li>
+</ul>
+
+<h2>6. Retencion de datos</h2>
+<ul>
+<li>Eventos de telemetria (dominios bloqueados): 90 dias</li>
+<li>Base de datos de dominios fraudulentos: indefinido (necesario para la proteccion)</li>
+<li>Identificador de dispositivo: mientras la aplicacion este instalada</li>
+</ul>
+
+<h2>7. Tus derechos</h2>
+<p>Puedes:</p>
+<ul>
+<li>Desinstalar la aplicacion en cualquier momento para dejar de enviar datos</li>
+<li>Desactivar la proteccion VPN desde la aplicacion</li>
+<li>Contactarnos para solicitar la eliminacion de tus datos</li>
+</ul>
+
+<h2>8. Uso de VPN</h2>
+<p>24Defend utiliza la API NetworkExtension de Apple (NEPacketTunnelProvider) para crear una configuracion VPN local. Esta VPN:</p>
+<ul>
+<li>Solo intercepta consultas DNS (puerto 53)</li>
+<li>No enruta tu trafico web a traves de servidores externos</li>
+<li>No registra ni inspecciona el contenido de las paginas web</li>
+<li>Opera completamente dentro de tu dispositivo para el filtrado de DNS</li>
+</ul>
+
+<h2>9. Cambios a esta politica</h2>
+<p>Podemos actualizar esta politica periodicamente. Te notificaremos sobre cambios significativos a traves de la aplicacion.</p>
+
+<h2>10. Contacto</h2>
+<p>Para preguntas sobre privacidad o solicitudes de datos:</p>
+<p>Email: <a href="mailto:privacy@24defend.com">privacy@24defend.com</a></p>
+<p>Web: <a href="https://24defend.com">24defend.com</a></p>
+
+<div class="footer">
+<p>24Defend — Proteccion contra phishing para America Latina</p>
+<p>Esta politica cumple con las directrices de la App Store de Apple y las leyes de proteccion de datos de Uruguay (Ley 18.331).</p>
+</div>
+
+</div>
+</body>
+</html>

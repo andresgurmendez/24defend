@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>24Defend — Proteccion contra phishing</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0F172A;
+    color: #E2E8F0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+}
+.hero {
+    text-align: center;
+    max-width: 600px;
+}
+.shield {
+    width: 80px; height: 80px;
+    margin: 0 auto 24px;
+    background: #1E293B;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid #3B82F6;
+}
+.shield svg { width: 40px; height: 40px; fill: #3B82F6; }
+h1 { font-size: 36px; color: #fff; margin-bottom: 8px; }
+.tagline { color: #94A3B8; font-size: 18px; margin-bottom: 32px; }
+.desc { color: #CBD5E1; font-size: 16px; line-height: 1.7; margin-bottom: 32px; }
+.badges { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; }
+.badge {
+    background: #1E293B;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 14px;
+    color: #94A3B8;
+}
+.badge strong { color: #3B82F6; display: block; font-size: 22px; margin-bottom: 4px; }
+.links { margin-top: 24px; }
+.links a {
+    color: #3B82F6;
+    text-decoration: none;
+    margin: 0 12px;
+    font-size: 14px;
+}
+.links a:hover { text-decoration: underline; }
+.coming {
+    display: inline-block;
+    background: #3B82F6;
+    color: #fff;
+    padding: 14px 32px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+    margin-bottom: 16px;
+}
+</style>
+</head>
+<body>
+<div class="hero">
+    <div class="shield">
+        <svg viewBox="0 0 24 24"><path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z"/></svg>
+    </div>
+    <h1>24Defend</h1>
+    <p class="tagline">Proteccion contra phishing para tu celular</p>
+    <p class="desc">
+        24Defend bloquea enlaces fraudulentos antes de que carguen.
+        Funciona con cualquier app — WhatsApp, SMS, email, navegador.
+        Sin configuracion, sin friccion, proteccion 24/7.
+    </p>
+    <a class="coming" href="#">Proximamente en App Store</a>
+    <div class="badges">
+        <div class="badge"><strong>72,000+</strong>dominios maliciosos bloqueados</div>
+        <div class="badge"><strong>24</strong>instituciones protegidas</div>
+        <div class="badge"><strong>0.2s</strong>tiempo de deteccion</div>
+    </div>
+    <div class="links">
+        <a href="/privacy.html">Politica de Privacidad</a>
+    </div>
+</div>
+</body>
+</html>
