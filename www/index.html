@@ -3,26 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>24Defend — Proteccion contra phishing</title>
+<title>24Defend — Proteccion contra phishing financiero</title>
+<meta name="description" content="24Defend bloquea enlaces fraudulentos que imitan a tu banco antes de que carguen. Proteccion real para Uruguay y America Latina.">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: #0F172A;
     color: #E2E8F0;
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 24px;
+    line-height: 1.7;
 }
+
+/* Hero */
 .hero {
     text-align: center;
-    max-width: 600px;
+    padding: 80px 24px 60px;
+    max-width: 720px;
+    margin: 0 auto;
 }
 .shield {
-    width: 80px; height: 80px;
-    margin: 0 auto 24px;
+    width: 88px; height: 88px;
+    margin: 0 auto 28px;
     background: #1E293B;
     border-radius: 50%;
     display: flex;
@@ -30,62 +31,250 @@ body {
     justify-content: center;
     border: 3px solid #3B82F6;
 }
-.shield svg { width: 40px; height: 40px; fill: #3B82F6; }
-h1 { font-size: 36px; color: #fff; margin-bottom: 8px; }
-.tagline { color: #94A3B8; font-size: 18px; margin-bottom: 32px; }
-.desc { color: #CBD5E1; font-size: 16px; line-height: 1.7; margin-bottom: 32px; }
-.badges { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; }
-.badge {
-    background: #1E293B;
-    border: 1px solid #334155;
-    border-radius: 8px;
-    padding: 12px 20px;
-    font-size: 14px;
-    color: #94A3B8;
-}
-.badge strong { color: #3B82F6; display: block; font-size: 22px; margin-bottom: 4px; }
-.links { margin-top: 24px; }
-.links a {
-    color: #3B82F6;
-    text-decoration: none;
-    margin: 0 12px;
-    font-size: 14px;
-}
-.links a:hover { text-decoration: underline; }
-.coming {
+.shield svg { width: 44px; height: 44px; fill: #3B82F6; }
+h1 { font-size: 40px; color: #fff; margin-bottom: 12px; letter-spacing: -0.5px; }
+.tagline { color: #3B82F6; font-size: 20px; font-weight: 600; margin-bottom: 16px; }
+.hero-desc { color: #94A3B8; font-size: 18px; max-width: 560px; margin: 0 auto 36px; }
+.cta {
     display: inline-block;
     background: #3B82F6;
     color: #fff;
-    padding: 14px 32px;
+    padding: 16px 36px;
     border-radius: 12px;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 600;
     text-decoration: none;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
+.cta-sub { color: #64748B; font-size: 13px; display: block; margin-top: 8px; }
+
+/* Stats */
+.stats {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 40px 24px;
+    max-width: 720px;
+    margin: 0 auto;
+}
+.stat {
+    background: #1E293B;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 20px 24px;
+    text-align: center;
+    flex: 1;
+    min-width: 140px;
+}
+.stat-num { color: #3B82F6; font-size: 28px; font-weight: 700; display: block; }
+.stat-label { color: #94A3B8; font-size: 13px; }
+
+/* Sections */
+section {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 24px;
+}
+h2 { color: #fff; font-size: 28px; margin-bottom: 24px; text-align: center; }
+.section-sub { color: #94A3B8; text-align: center; font-size: 16px; margin-bottom: 40px; max-width: 560px; margin-left: auto; margin-right: auto; }
+
+/* Difference */
+.diff-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+@media (max-width: 600px) { .diff-grid { grid-template-columns: 1fr; } }
+.diff-card {
+    background: #1E293B;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 24px;
+}
+.diff-card.highlight {
+    border-color: #3B82F6;
+    background: linear-gradient(135deg, #1E293B 0%, #172554 100%);
+}
+.diff-card h3 { color: #fff; font-size: 16px; margin-bottom: 8px; }
+.diff-card p { color: #94A3B8; font-size: 14px; margin: 0; }
+.diff-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: block; }
+.diff-label.them { color: #64748B; }
+.diff-label.us { color: #3B82F6; }
+
+/* How */
+.how-list { list-style: none; counter-reset: step; }
+.how-list li {
+    counter-increment: step;
+    background: #1E293B;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 20px 24px 20px 68px;
+    margin-bottom: 12px;
+    position: relative;
+}
+.how-list li::before {
+    content: counter(step);
+    position: absolute;
+    left: 20px;
+    top: 18px;
+    width: 36px; height: 36px;
+    background: #3B82F6;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+}
+.how-list h3 { color: #fff; font-size: 15px; margin-bottom: 4px; }
+.how-list p { color: #94A3B8; font-size: 14px; margin: 0; }
+
+/* Threat */
+.threat-bar {
+    background: #1E293B;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 12px;
+}
+.threat-bar h3 { color: #fff; font-size: 15px; margin-bottom: 8px; }
+.threat-bar p { color: #94A3B8; font-size: 14px; margin: 0; }
+.threat-bar .num { color: #EF4444; font-weight: 700; }
+
+/* Footer */
+footer {
+    text-align: center;
+    padding: 40px 24px;
+    border-top: 1px solid #1E293B;
+    color: #64748B;
+    font-size: 13px;
+}
+footer a { color: #3B82F6; text-decoration: none; margin: 0 8px; }
 </style>
 </head>
 <body>
+
 <div class="hero">
     <div class="shield">
         <svg viewBox="0 0 24 24"><path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z"/></svg>
     </div>
     <h1>24Defend</h1>
-    <p class="tagline">Proteccion contra phishing para tu celular</p>
-    <p class="desc">
-        24Defend bloquea enlaces fraudulentos antes de que carguen.
-        Funciona con cualquier app — WhatsApp, SMS, email, navegador.
-        Sin configuracion, sin friccion, proteccion 24/7.
+    <p class="tagline">Bloquea phishing bancario antes del click</p>
+    <p class="hero-desc">
+        El 55% de los fraudes en Uruguay llegan por links que imitan a tu banco.
+        24Defend los detecta y bloquea en tiempo real, antes de que puedas abrirlos.
+        Funciona con WhatsApp, SMS, email y cualquier app.
     </p>
-    <a class="coming" href="#">Proximamente en App Store</a>
-    <div class="badges">
-        <div class="badge"><strong>72,000+</strong>dominios maliciosos bloqueados</div>
-        <div class="badge"><strong>24</strong>instituciones protegidas</div>
-        <div class="badge"><strong>0.2s</strong>tiempo de deteccion</div>
-    </div>
-    <div class="links">
-        <a href="/privacy.html">Politica de Privacidad</a>
-    </div>
+    <a class="cta" href="#">Proximamente en App Store</a>
+    <span class="cta-sub">Gratis. Sin publicidad. Sin rastreo.</span>
 </div>
+
+<div class="stats">
+    <div class="stat"><span class="stat-num">72,000+</span><span class="stat-label">dominios maliciosos bloqueados</span></div>
+    <div class="stat"><span class="stat-num">24</span><span class="stat-label">instituciones de Uruguay protegidas</span></div>
+    <div class="stat"><span class="stat-num">&lt;1s</span><span class="stat-label">tiempo de bloqueo</span></div>
+</div>
+
+<section>
+    <h2>Por que 24Defend es diferente</h2>
+    <p class="section-sub">No es otro bloqueador de anuncios. Es proteccion financiera disenada para America Latina.</p>
+
+    <div class="diff-grid">
+        <div class="diff-card">
+            <span class="diff-label them">Bloqueadores genericos</span>
+            <h3>Listas globales genericas</h3>
+            <p>AdGuard y NextDNS usan listas globales. No saben que "brou-seguro.com" imita al BROU. Si un dominio no esta en su lista, pasa sin problema.</p>
+        </div>
+        <div class="diff-card highlight">
+            <span class="diff-label us">24Defend</span>
+            <h3>Conoce a tus instituciones</h3>
+            <p>Sabemos que BROU, Itau, Santander, OCA, Prex y Antel son marcas reales en Uruguay. Si un dominio se parece a una de ellas, lo detectamos aunque nunca haya sido reportado.</p>
+        </div>
+        <div class="diff-card">
+            <span class="diff-label them">Bloqueadores genericos</span>
+            <h3>Solo bloquean lo conocido</h3>
+            <p>Dependen de reportes. Un dominio de phishing nuevo puede estar activo horas antes de ser detectado.</p>
+        </div>
+        <div class="diff-card highlight">
+            <span class="diff-label us">24Defend</span>
+            <h3>Detecta lo desconocido</h3>
+            <p>Inteligencia artificial analiza cada dominio sospechoso en tiempo real: edad del dominio, certificado SSL, similitud con marcas oficiales. No necesita que alguien lo reporte primero.</p>
+        </div>
+        <div class="diff-card">
+            <span class="diff-label them">Bloqueadores genericos</span>
+            <h3>Mismo producto para todo el mundo</h3>
+            <p>Disenados en Silicon Valley. No entienden que el fraude en LatAm llega por WhatsApp, usa espanol, y se enfoca en bancos locales.</p>
+        </div>
+        <div class="diff-card highlight">
+            <span class="diff-label us">24Defend</span>
+            <h3>Hecho para America Latina</h3>
+            <p>Vocabulario de phishing en espanol ("verificar cuenta", "bloqueo urgente"). Marcas uruguayas y regionales. Entrenado con patrones reales de fraude en la region.</p>
+        </div>
+    </div>
+</section>
+
+<section>
+    <h2>La amenaza es real</h2>
+    <p class="section-sub">Los numeros del fraude digital en Uruguay y America Latina.</p>
+
+    <div class="threat-bar">
+        <h3><span class="num">14,264</span> incidentes de ciberseguridad en Uruguay en 2024</h3>
+        <p>Phishing fue la modalidad mas frecuente. Fuente: CERTuy 2025.</p>
+    </div>
+    <div class="threat-bar">
+        <h3><span class="num">155%</span> de aumento en estafas en America Latina en 2025</h3>
+        <p>Los intentos de fraude por ingenieria social casi se triplicaron. Fuente: BioCatch 2026.</p>
+    </div>
+    <div class="threat-bar">
+        <h3><span class="num">55%</span> de los mensajes de fraude contienen un link</h3>
+        <p>El vector mas comun. Un link a un sitio clonado del banco. 24Defend lo bloquea antes de que cargue. Fuente: Proofpoint 2024.</p>
+    </div>
+    <div class="threat-bar">
+        <h3>Solo el <span class="num">12%</span> de las estafas se denuncian</h3>
+        <p>El costo real del fraude es 6-8 veces mayor que las cifras oficiales. Fuente: INE Uruguay.</p>
+    </div>
+</section>
+
+<section>
+    <h2>Como funciona</h2>
+    <p class="section-sub">Un permiso. Treinta segundos. Proteccion total.</p>
+
+    <ol class="how-list">
+        <li>
+            <h3>Instalas la app y activas la proteccion</h3>
+            <p>Un solo permiso (VPN local). No accede a tus contactos, fotos ni mensajes. Tu trafico no sale del dispositivo.</p>
+        </li>
+        <li>
+            <h3>Recibes un link de phishing por WhatsApp, SMS o email</h3>
+            <p>"Su cuenta BROU fue bloqueada. Verifique sus datos en brou-seguro.com". El atacante espera que lo abras.</p>
+        </li>
+        <li>
+            <h3>24Defend lo bloquea antes de que cargue</h3>
+            <p>La pagina falsa nunca llega a tu pantalla. Recibes una notificacion: "Sitio bloqueado — dominio fraudulento identificado".</p>
+        </li>
+        <li>
+            <h3>El dominio queda bloqueado para todos</h3>
+            <p>Cada dominio detectado protege a todos los usuarios de la red. 24Defend se vuelve mas inteligente con cada ataque.</p>
+        </li>
+    </ol>
+</section>
+
+<section style="text-align: center;">
+    <h2>Protege tu celular hoy</h2>
+    <p class="section-sub">Gratis. Sin publicidad. Sin vender tus datos. Hecho en Uruguay para America Latina.</p>
+    <a class="cta" href="#">Proximamente en App Store</a>
+</section>
+
+<footer>
+    <p>24Defend — Proteccion contra phishing financiero</p>
+    <p style="margin-top: 8px;">
+        <a href="privacy.html">Politica de Privacidad</a>
+        <a href="mailto:contacto@24defend.com">Contacto</a>
+    </p>
+    <p style="margin-top: 16px;">Uruguay, 2026</p>
+</footer>
+
 </body>
 </html>
