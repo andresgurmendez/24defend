@@ -20,7 +20,10 @@ public final class BloomFilter {
         let d = element.lowercased()
         for i in 0..<k {
             let hash = murmurhash3(d, seed: UInt32(i))
-            let idx = Int(hash) % m
+            // Python mmh3.hash() returns signed int32, and Python's % always returns
+            // non-negative for positive divisor. Match that behavior exactly.
+            let signed = Int32(bitPattern: hash)
+            let idx = pythonMod(Int(signed), m)
             let byteIdx = idx / 8
             let bitIdx = idx % 8
             guard byteIdx < bits.count else { return false }
@@ -29,6 +32,13 @@ public final class BloomFilter {
             }
         }
         return true
+    }
+
+    /// Python-style modulo: always returns non-negative result for positive divisor.
+    /// Swift's % can return negative for negative dividend.
+    private func pythonMod(_ a: Int, _ b: Int) -> Int {
+        let r = a % b
+        return r >= 0 ? r : r + b
     }
 
     /// MurmurHash3 32-bit — must match mmh3.hash(key, seed=i) from Python
