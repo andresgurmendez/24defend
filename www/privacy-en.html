@@ -38,10 +38,11 @@ a { color: #3B82F6; }
 <h1>Privacy Policy</h1>
 <p class="date">Last updated: April 16, 2026</p>
 
-<p>24Defend ("we", "the app") is an anti-phishing application that blocks fraudulent links on your mobile device. This policy describes what data we collect, how we use it, and how we protect it.</p>
+<p>24Defend is an anti-phishing application developed and operated in Montevideo, Uruguay. This policy describes what data we collect, how we use it, and how we protect it.</p>
 
 <h2>1. How 24Defend works</h2>
-<p>24Defend creates a local VPN configuration on your device that intercepts DNS queries (the step where your device looks up a website address). This VPN operates locally on your device — it does not route your internet traffic through external servers.</p>
+<p>24Defend creates a local VPN configuration on your device that intercepts DNS queries (the step where your device looks up a website address). The VPN is required to intercept DNS queries at the system level, which is the only way to protect users across all apps (WhatsApp, SMS, email, browsers) simultaneously.</p>
+<p>The VPN performs DNS filtering locally on your device. The vast majority of queries are resolved on-device using local blocklists and machine learning models without any network call. For suspicious domains not in the local database, the domain name is sent to our servers for analysis.</p>
 <p>When we detect a fraudulent domain, we block the DNS query before the page loads and notify you.</p>
 
 <h2>2. Data we collect</h2>
@@ -56,7 +57,10 @@ a { color: #3B82F6; }
 <h3>2.3 Anonymous device identifier</h3>
 <p>We generate a random unique identifier (UUID) for your device. This identifier is not linked to your Apple ID, phone number, email address, or any personal information. It is used solely to group telemetry events from the same device.</p>
 
-<h3>2.4 Data we do NOT collect</h3>
+<h3>2.4 Server logs</h3>
+<p>When the app communicates with our servers, standard server logs may temporarily record IP addresses for security and abuse prevention purposes. These logs are not associated with your browsing activity and are automatically purged within 14 days.</p>
+
+<h3>2.5 Data we do NOT collect</h3>
 <ul>
 <li>Browsing history (websites you normally visit)</li>
 <li>Web page content</li>
@@ -64,7 +68,6 @@ a { color: #3B82F6; }
 <li>Geographic location</li>
 <li>Contacts, photos, or other personal data</li>
 <li>Apple ID or Apple account information</li>
-<li>User IP address</li>
 </ul>
 
 <h2>3. How we use the data</h2>
@@ -75,55 +78,69 @@ a { color: #3B82F6; }
 </ul>
 
 <h2>4. Who we share data with</h2>
-<p>We do not sell data to third parties. Data may be shared with:</p>
+<p>We do not sell, trade, or rent your data to third parties. Data may be shared with:</p>
 <ul>
-<li><strong>Partner financial institutions:</strong> Aggregated, anonymized data about fraudulent domains impersonating their brand (e.g., "47 phishing domains targeting BROU were blocked this month").</li>
-<li><strong>Infrastructure providers:</strong> Amazon Web Services (AWS) hosts our servers. Data is stored encrypted.</li>
+<li><strong>Partner financial institutions:</strong> Aggregated, anonymized data about fraudulent domains impersonating their brand (e.g., "47 phishing domains targeting BROU were blocked this month"). No individual user data is shared.</li>
+<li><strong>Infrastructure providers:</strong> Amazon Web Services (AWS) hosts our servers under a data processing agreement. Data is stored encrypted in AWS facilities in the United States (us-east-1 region).</li>
 </ul>
+<p>We do not use any third-party analytics SDKs, advertising frameworks, or tracking tools.</p>
 
-<h2>5. Data security</h2>
+<h2>5. International data transfers</h2>
+<p>Our servers are hosted in the United States (AWS us-east-1). If you are located in Uruguay or elsewhere in Latin America, your data (blocked domain names and session statistics) is transferred to and processed in the United States. We protect this data using encryption in transit (TLS) and at rest (AES-256).</p>
+
+<h2>6. Data security</h2>
 <ul>
 <li>All communications between the app and our servers use HTTPS (TLS encryption).</li>
 <li>Data is stored in Amazon DynamoDB with encryption at rest.</li>
 <li>Telemetry events are automatically deleted after 90 days.</li>
-<li>Data access is restricted to the 24Defend technical team.</li>
+<li>Server logs with IP addresses are purged within 14 days.</li>
+<li>Data access is restricted to authorized members of the 24Defend technical team.</li>
 </ul>
 
-<h2>6. Data retention</h2>
+<h2>7. Data retention</h2>
 <ul>
 <li>Telemetry events (blocked domains): 90 days</li>
+<li>Server logs (IP addresses): 14 days</li>
 <li>Fraudulent domain database: indefinite (necessary for protection)</li>
 <li>Device identifier: while the app is installed</li>
 </ul>
 
-<h2>7. Your rights</h2>
+<h2>8. Your rights</h2>
 <p>You can:</p>
 <ul>
-<li>Uninstall the app at any time to stop sending data</li>
-<li>Disable VPN protection from within the app</li>
-<li>Contact us to request deletion of your data</li>
+<li>Uninstall the app at any time to stop all data collection</li>
+<li>Disable VPN protection from within the app at any time</li>
+<li>Contact us at <a href="mailto:dev@24defend.com">dev@24defend.com</a> to request access to or deletion of your data</li>
 </ul>
+<p>Under Uruguay's data protection law (Ley 18.331), you have the right to access, rectify, and delete your personal data. We will respond to requests within 5 business days.</p>
 
-<h2>8. VPN usage</h2>
+<h2>9. Children's privacy</h2>
+<p>24Defend is not directed at children under 13 years of age. We do not knowingly collect personal data from children. If you believe a child has provided us with data, please contact us and we will delete it promptly.</p>
+
+<h2>10. VPN usage disclosure</h2>
 <p>24Defend uses Apple's NetworkExtension API (NEPacketTunnelProvider) to create a local VPN configuration. This VPN:</p>
 <ul>
+<li>Is required to intercept DNS queries at the system level, providing protection across all apps</li>
 <li>Only intercepts DNS queries (port 53)</li>
 <li>Does not route your web traffic through external servers</li>
 <li>Does not log or inspect web page content</li>
-<li>Operates entirely within your device for DNS filtering</li>
+<li>Performs the majority of filtering locally on your device using downloaded blocklists and an on-device machine learning model</li>
+<li>Only contacts our servers when a domain is flagged as suspicious by local analysis (approximately 0.2% of queries)</li>
 </ul>
 
-<h2>9. Changes to this policy</h2>
-<p>We may update this policy periodically. We will notify you of significant changes through the app.</p>
+<h2>11. Changes to this policy</h2>
+<p>We may update this policy periodically. We will notify you of significant changes through the app. Continued use of 24Defend after changes constitutes acceptance of the updated policy.</p>
 
-<h2>10. Contact</h2>
-<p>For privacy questions or data requests:</p>
-<p>Email: <a href="mailto:privacy@24defend.com">privacy@24defend.com</a></p>
-<p>Web: <a href="https://24defend.com">24defend.com</a></p>
+<h2>12. Contact</h2>
+<p>For privacy questions, data requests, or concerns:</p>
+<p><strong>24Defend</strong></p>
+<p>Montevideo, Uruguay</p>
+<p>Email: <a href="mailto:dev@24defend.com">dev@24defend.com</a></p>
+<p>Web: <a href="https://www.24defend.com">www.24defend.com</a></p>
 
 <div class="footer">
-<p>24Defend — Anti-phishing protection for Latin America</p>
-<p>This policy complies with Apple App Store guidelines and Uruguay's data protection law (Ley 18.331).</p>
+<p>24Defend, Montevideo, Uruguay.</p>
+<p>This policy complies with Apple App Store Review Guidelines (Section 5.1 and 5.4), Uruguay's data protection law (Ley 18.331), and applicable international privacy standards.</p>
 </div>
 
 </div>
