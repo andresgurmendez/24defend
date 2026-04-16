@@ -13,6 +13,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private var httpsRejectListener: NWListener?
     private var refreshTimer: DispatchSourceTimer?
     private let dnsCache = DNSCache(maxSize: 2000, ttl: 3600) // 2K entries, 1 hour TTL
+    private let telemetry = TelemetryClient.shared
 
     // MARK: - Tunnel lifecycle
 
@@ -47,6 +48,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             // Initial refresh + schedule daily repeating refresh
             Task { await self.refreshData() }
             self.startRefreshTimer()
+            self.telemetry.startUploadTimer()
         }
     }
 
@@ -54,6 +56,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         logger.info("Stopping tunnel (reason: \(String(describing: reason)))")
         refreshTimer?.cancel()
         refreshTimer = nil
+        telemetry.stopAndFlush()
         completionHandler()
     }
 
@@ -105,9 +108,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         guard let query = DNSPacket.parseQuery(from: parsed.dnsPayload) else { return }
 
         let domain = query.domainName
+        telemetry.incrementTotalQueries()
 
         // 0. Local verdict cache — skip all layers for recently seen domains
         if let cached = dnsCache.get(domain) {
+            telemetry.incrementCacheHits()
             switch cached {
             case .allow:
                 forwardToUpstream(query: query, original: parsed, proto: proto)
@@ -125,6 +130,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         if runtimeBlacklist.contains(domain.lowercased()) {
             dnsCache.set(domain, verdict: .block)
             logger.warning("BLOCKED (runtime) \(domain)")
+            telemetry.recordBlock(domain: domain, layer: "runtime_blacklist")
             BlockLog.append(BlockEvent(domain: domain, reason: "Confirmed by 24Defend cloud", severity: .red))
             sendNotification(domain: domain, reason: "Confirmed phishing site", severity: .red)
             let dnsResp = DNSPacket.buildBlockResponse(for: query)
@@ -135,6 +141,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         // 2. Infrastructure domains → always allow (CDNs, Apple, Google, etc.)
         if DomainChecker.isInfrastructureDomain(domain.lowercased()) {
+            telemetry.incrementInfrastructureAllowed()
             dnsCache.set(domain, verdict: .allow)
             forwardToUpstream(query: query, original: parsed, proto: proto)
             return
@@ -142,6 +149,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         // 3. Bloom filter: whitelist → silent allow (no further checks)
         if store.isWhitelisted(domain) {
+            telemetry.incrementBloomWhitelistHits()
             dnsCache.set(domain, verdict: .allow)
             forwardToUpstream(query: query, original: parsed, proto: proto)
             return
@@ -149,6 +157,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         // 4. Bloom filter: blacklist → instant block (no API call needed)
         if store.isBlacklisted(domain) {
+            telemetry.incrementBloomBlacklistHits()
+            telemetry.recordBlock(domain: domain, layer: "bloom_blacklist")
             dnsCache.set(domain, verdict: .block)
             logger.warning("BLOCKED (bloom) \(domain)")
             BlockLog.append(BlockEvent(domain: domain, reason: "Known phishing domain", severity: .red))
@@ -164,6 +174,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         switch result {
         case .blocked(let reason):
+            // Determine which layer caused the block for telemetry
+            let layer: String
+            if reason.contains("Known phishing") || reason.contains("Subdomain of known") {
+                layer = "brand_rules"
+            } else {
+                layer = "brand_rules"
+            }
+            telemetry.recordBlock(domain: domain, layer: layer)
             dnsCache.set(domain, verdict: .block)
             logger.warning("BLOCKED \(domain) — \(reason)")
             BlockLog.append(BlockEvent(domain: domain, reason: reason, severity: .red))
@@ -174,7 +192,21 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             packetFlow.writePackets([ipResp], withProtocols: [proto])
 
         case .warned(let reason):
+            // Determine layer for telemetry
+            let layer: String
+            if reason.contains("ML model") {
+                layer = "ml_classifier"
+                telemetry.incrementMLWarns()
+            } else if reason.contains("Suspicious:") {
+                layer = "brand_rules"
+                telemetry.incrementBrandRuleWarns()
+            } else {
+                layer = "brand_rules"
+                telemetry.incrementBrandRuleWarns()
+            }
+
             logger.info("WARNED \(domain) — \(reason)")
+            telemetry.incrementAPICalls()
             // Hold DNS — check backend first, then decide to block or forward
             Task {
                 let backendVerdict = await APIClient.checkDomain(domain)
@@ -183,6 +215,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     self.dnsCache.set(domain, verdict: .block)
                     self.logger.warning("ESCALATED to BLOCK: \(domain)")
                     self.runtimeBlacklist.insert(domain.lowercased())
+                    self.telemetry.recordBlock(domain: domain, layer: "agent")
                     BlockLog.append(BlockEvent(domain: domain, reason: backendVerdict?.reason ?? reason, severity: .red))
                     self.sendNotification(domain: domain, reason: backendVerdict?.reason ?? reason, severity: .red)
 
@@ -191,6 +224,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     self.packetFlow.writePackets([ipResp], withProtocols: [proto])
                 } else {
                     // Don't cache warned domains — re-check next time in case backend updates
+                    self.telemetry.recordWarn(domain: domain, layer: layer)
                     BlockLog.append(BlockEvent(domain: domain, reason: reason, severity: .yellow))
                     self.sendNotification(domain: domain, reason: reason, severity: .yellow)
                     self.forwardToUpstream(query: query, original: parsed, proto: proto)

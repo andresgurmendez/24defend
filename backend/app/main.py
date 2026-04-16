@@ -14,6 +14,7 @@ from app.scheduler import (
 from app.ingestion.runner import run_blacklist_ingestion
 from app.routes.admin import router as admin_router
 from app.routes.check import router as check_router
+from app.routes.telemetry import router as telemetry_router
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ app = FastAPI(
 
 app.include_router(check_router)
 app.include_router(admin_router)
+app.include_router(telemetry_router)
 
 
 @app.get("/health")
