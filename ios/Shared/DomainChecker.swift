@@ -87,20 +87,64 @@ public final class DomainChecker {
             }
         }
 
-        // 5. Brand rule engine: catches brand impersonation that Levenshtein misses
-        //    e.g., "actualizacion-brou-2026.com", "itau-verificar-cuenta.xyz"
+        // 5. Skip known infrastructure/CDN domains — never flag these
+        if isInfrastructureDomain(normalized) {
+            return .allowed
+        }
+
+        // 6. Brand rule engine: catches brand impersonation that Levenshtein misses
+        //    ONLY flag if there's a brand match — don't flag random infrastructure domains
         let risk = BrandRuleEngine.assess(normalized)
-        if risk.isHighRisk {
+        if risk.isHighRisk && risk.matchedBrand != nil {
             return .warned(reason: "Suspicious: \(risk.signals.first ?? "brand impersonation detected")")
         }
 
-        // 6. ML classifier: logistic regression on 20 domain features (AUC 0.9974)
-        let prediction = PhishingClassifier.predict(normalized)
-        if prediction.isHighRisk {
-            return .warned(reason: "ML model: phishing probability \(Int(prediction.score * 100))%")
+        // 7. ML classifier: ONLY run if brand rule engine found a brand keyword
+        //    This prevents false positives on CDN/infrastructure domains
+        if risk.matchedBrand != nil {
+            let prediction = PhishingClassifier.predict(normalized)
+            if prediction.isHighRisk {
+                return .warned(reason: "ML model: phishing probability \(Int(prediction.score * 100))%")
+            }
         }
 
-        // 7. Silent allow
+        // 8. Silent allow
         return .allowed
+    }
+
+    // MARK: - Infrastructure domain filter
+
+    /// Known CDN, system, and infrastructure domain suffixes that should never be flagged.
+    private static let infrastructureSuffixes: [String] = [
+        // CDNs
+        "akamaiedge.net", "akamai.net", "akadns.net", "akamaized.net",
+        "cloudfront.net", "cloudflare.com", "fastly.net", "edgekey.net",
+        "edgesuite.net", "llnwd.net", "footprint.net",
+        // Apple
+        "apple.com", "apple-dns.net", "icloud.com", "mzstatic.com",
+        "aaplimg.com", "cdn-apple.com", "apple-cloudkit.com",
+        // Google
+        "google.com", "googleapis.com", "gstatic.com", "googlevideo.com",
+        "googleusercontent.com", "google-analytics.com", "gvt1.com",
+        "gvt2.com", "1e100.net",
+        // Microsoft
+        "microsoft.com", "msedge.net", "azure.com", "azurefd.net",
+        "windows.net", "office.com", "office365.com",
+        // Meta
+        "facebook.com", "fbcdn.net", "instagram.com", "whatsapp.net",
+        // Amazon
+        "amazonaws.com", "amazon.com", "cloudfront.net",
+        // Other common infra
+        "doubleclick.net", "crashlytics.com", "firebaseio.com",
+        "appsflyer.com", "branch.io", "adjust.com",
+    ]
+
+    private static func isInfrastructureDomain(_ domain: String) -> Bool {
+        for suffix in infrastructureSuffixes {
+            if domain == suffix || domain.hasSuffix(".\(suffix)") {
+                return true
+            }
+        }
+        return false
     }
 }
