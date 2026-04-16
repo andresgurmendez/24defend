@@ -133,14 +133,21 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
 
-        // 2. Bloom filter: whitelist → silent allow (no further checks)
+        // 2. Infrastructure domains → always allow (CDNs, Apple, Google, etc.)
+        if DomainChecker.isInfrastructureDomain(domain.lowercased()) {
+            dnsCache.set(domain, verdict: .allow)
+            forwardToUpstream(query: query, original: parsed, proto: proto)
+            return
+        }
+
+        // 3. Bloom filter: whitelist → silent allow (no further checks)
         if store.isWhitelisted(domain) {
             dnsCache.set(domain, verdict: .allow)
             forwardToUpstream(query: query, original: parsed, proto: proto)
             return
         }
 
-        // 3. Bloom filter: blacklist → instant block (no API call needed)
+        // 4. Bloom filter: blacklist → instant block (no API call needed)
         if store.isBlacklisted(domain) {
             dnsCache.set(domain, verdict: .block)
             logger.warning("BLOCKED (bloom) \(domain)")

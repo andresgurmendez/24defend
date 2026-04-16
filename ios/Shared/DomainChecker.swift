@@ -139,7 +139,7 @@ public final class DomainChecker {
         "appsflyer.com", "branch.io", "adjust.com",
     ]
 
-    private static func isInfrastructureDomain(_ domain: String) -> Bool {
+    public static func isInfrastructureDomain(_ domain: String) -> Bool {
         for suffix in infrastructureSuffixes {
             if domain == suffix || domain.hasSuffix(".\(suffix)") {
                 return true
