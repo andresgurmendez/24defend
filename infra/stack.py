@@ -19,6 +19,8 @@ from aws_cdk import (
     aws_cloudfront_origins as origins,
     aws_logs as logs,
     aws_ecr_assets,
+    aws_certificatemanager as acm,
+    aws_elasticloadbalancingv2 as elbv2,
 )
 
 
@@ -181,6 +183,19 @@ class DefendStack(Stack):
         )
 
         # ---------------------------------------------------------------
+        # ACM Certificate for HTTPS
+        # ---------------------------------------------------------------
+        api_domain = env_config.get("api_domain")
+        certificate = None
+        if api_domain:
+            certificate = acm.Certificate(
+                self,
+                "ApiCert",
+                domain_name=api_domain,
+                validation=acm.CertificateValidation.from_dns(),
+            )
+
+        # ---------------------------------------------------------------
         # Fargate service behind ALB
         # ---------------------------------------------------------------
         fargate_service = ecs_patterns.ApplicationLoadBalancedFargateService(
@@ -193,6 +208,9 @@ class DefendStack(Stack):
             desired_count=env_config["desired_count"],
             public_load_balancer=True,
             assign_public_ip=False,
+            certificate=certificate,
+            redirect_http=True if certificate else False,
+            protocol=elbv2.ApplicationProtocol.HTTPS if certificate else elbv2.ApplicationProtocol.HTTP,
             task_subnets=ec2.SubnetSelection(
                 subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS,
             ),
@@ -232,7 +250,10 @@ class DefendStack(Stack):
         # ---------------------------------------------------------------
         # Outputs
         # ---------------------------------------------------------------
-        CfnOutput(self, "AlbUrl", value=f"http://{fargate_service.load_balancer.load_balancer_dns_name}")
+        protocol = "https" if certificate else "http"
+        CfnOutput(self, "AlbUrl", value=f"{protocol}://{fargate_service.load_balancer.load_balancer_dns_name}")
+        if api_domain:
+            CfnOutput(self, "ApiUrl", value=f"https://{api_domain}")
         CfnOutput(self, "EcrRepoUri", value=ecr_repo.repository_uri)
         CfnOutput(self, "DynamoTableName", value=table.table_name)
         CfnOutput(self, "BloomBucketName", value=bloom_bucket.bucket_name)

@@ -8,6 +8,7 @@ ENVIRONMENTS = {
         "fargate_memory": 512,
         "desired_count": 1,
         "bedrock_model_id": "us.anthropic.claude-sonnet-4-6",
+        "api_domain": "api.24defend.com",
     },
     "prod": {
         "account": "PLACEHOLDER",
@@ -16,5 +17,6 @@ ENVIRONMENTS = {
         "fargate_memory": 1024,
         "desired_count": 2,
         "bedrock_model_id": "us.anthropic.claude-sonnet-4-6",
+        "api_domain": "api.24defend.com",
     },
 }

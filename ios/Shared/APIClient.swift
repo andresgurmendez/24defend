@@ -10,7 +10,7 @@ public struct CheckResponse: Codable {
 
 public final class APIClient {
 
-    static let baseURL = "http://api.24defend.com"
+    static let baseURL = "https://api.24defend.com"
 
     // Use a session that connects directly, bypassing our VPN tunnel
     private static let session: URLSession = {

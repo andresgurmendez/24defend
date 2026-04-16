@@ -1,4 +1,5 @@
 FROM --platform=linux/amd64 python:3.12-slim
+# Force rebuild: 2026-04-15
 
 WORKDIR /app
 
