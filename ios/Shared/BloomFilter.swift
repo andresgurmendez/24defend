@@ -194,7 +194,6 @@ public final class BloomFilterStore {
         guard let url = URL(string: url) else { return nil }
         var request = URLRequest(url: url)
         request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
-        request.setValue("true", forHTTPHeaderField: "ngrok-skip-browser-warning")
         request.timeoutInterval = 15
 
         let config = URLSessionConfiguration.default

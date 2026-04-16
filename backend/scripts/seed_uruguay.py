@@ -14,6 +14,7 @@ Usage:
 """
 
 import asyncio
+import os
 import sys
 
 import httpx
@@ -52,7 +53,7 @@ UY_INSTITUTIONS = [
     {"partner_id": "agesic", "domains": ["agesic.gub.uy"]},
 ]
 
-API_KEY = "dev-api-key-change-me"
+API_KEY = os.environ.get("DEFEND_API_KEY", "dev-api-key-change-me")
 
 
 async def discover_and_register(base_url: str, institution: dict):

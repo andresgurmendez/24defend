@@ -10,8 +10,7 @@ public struct CheckResponse: Codable {
 
 public final class APIClient {
 
-    // Change this to your ngrok URL or production API
-    static let baseURL = "https://skyward-bulbiferous-delois.ngrok-free.dev"
+    static let baseURL = "http://api.24defend.com"
 
     // Use a session that connects directly, bypassing our VPN tunnel
     private static let session: URLSession = {
@@ -28,7 +27,6 @@ public final class APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("true", forHTTPHeaderField: "ngrok-skip-browser-warning")
 
         let body = ["domain": domain]
         request.httpBody = try? JSONEncoder().encode(body)
