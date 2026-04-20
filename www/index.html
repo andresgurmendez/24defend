@@ -1,280 +1,1261 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>24Defend — Proteccion contra phishing financiero</title>
-<meta name="description" content="24Defend bloquea enlaces fraudulentos que imitan a tu banco antes de que carguen. Proteccion real para Uruguay y America Latina.">
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0F172A;
-    color: #E2E8F0;
-    line-height: 1.7;
-}
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>24defend · Defensa contra phishing para LatAm</title>
+  <meta name="description" content="24defend intercepta los enlaces fraudulentos que llegan a tu teléfono por SMS, WhatsApp, correo y navegador." />
 
-/* Hero */
-.hero {
-    text-align: center;
-    padding: 80px 24px 60px;
-    max-width: 720px;
-    margin: 0 auto;
-}
-.shield {
-    width: 88px; height: 88px;
-    margin: 0 auto 28px;
-    background: #1E293B;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 3px solid #3B82F6;
-}
-.shield svg { width: 44px; height: 44px; fill: #3B82F6; }
-h1 { font-size: 40px; color: #fff; margin-bottom: 12px; letter-spacing: -0.5px; }
-.tagline { color: #3B82F6; font-size: 20px; font-weight: 600; margin-bottom: 16px; }
-.hero-desc { color: #94A3B8; font-size: 18px; max-width: 560px; margin: 0 auto 36px; }
-.cta {
-    display: inline-block;
-    background: #3B82F6;
-    color: #fff;
-    padding: 16px 36px;
-    border-radius: 12px;
-    font-size: 17px;
-    font-weight: 600;
-    text-decoration: none;
-    margin-bottom: 12px;
-}
-.cta-sub { color: #64748B; font-size: 13px; display: block; margin-top: 8px; }
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Fraunces:ital,opsz,wght@1,9..144,300..700&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
-/* Stats */
-.stats {
-    display: flex;
-    gap: 16px;
-    justify-content: center;
-    flex-wrap: wrap;
-    padding: 40px 24px;
-    max-width: 720px;
-    margin: 0 auto;
-}
-.stat {
-    background: #1E293B;
-    border: 1px solid #334155;
-    border-radius: 12px;
-    padding: 20px 24px;
-    text-align: center;
-    flex: 1;
-    min-width: 140px;
-}
-.stat-num { color: #3B82F6; font-size: 28px; font-weight: 700; display: block; }
-.stat-label { color: #94A3B8; font-size: 13px; }
+  <style>
+    /* =========================== RESET & TOKENS =========================== */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    :root {
+      --navy: #0A1628;
+      --navy-soft: #0F1D36;
+      --blue-400: #60a5fa;
+      --blue-500: #3b82f6;
+      --blue-300: #93c5fd;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-300: #cbd5e1;
+      --slate-400: #94a3b8;
+      --slate-500: #64748b;
+      --slate-600: #475569;
+      --slate-700: #334155;
+      --slate-800: #1e293b;
+      --red-400: #f87171;
+      --red-500: #ef4444;
+      --green-400: #4ade80;
+      --hairline: rgba(148, 163, 184, 0.10);
+    }
 
-/* Sections */
-section {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 60px 24px;
-}
-h2 { color: #fff; font-size: 28px; margin-bottom: 24px; text-align: center; }
-.section-sub { color: #94A3B8; text-align: center; font-size: 16px; margin-bottom: 40px; max-width: 560px; margin-left: auto; margin-right: auto; }
+    body {
+      background: var(--navy);
+      color: var(--slate-100);
+      font-family: 'Inter Tight', system-ui, sans-serif;
+      line-height: 1.5;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+    body::selection, ::selection { background: var(--blue-500); color: white; }
 
-/* Difference */
-.diff-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-}
-@media (max-width: 600px) { .diff-grid { grid-template-columns: 1fr; } }
-.diff-card {
-    background: #1E293B;
-    border: 1px solid #334155;
-    border-radius: 12px;
-    padding: 24px;
-}
-.diff-card.highlight {
-    border-color: #3B82F6;
-    background: linear-gradient(135deg, #1E293B 0%, #172554 100%);
-}
-.diff-card h3 { color: #fff; font-size: 16px; margin-bottom: 8px; }
-.diff-card p { color: #94A3B8; font-size: 14px; margin: 0; }
-.diff-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: block; }
-.diff-label.them { color: #64748B; }
-.diff-label.us { color: #3B82F6; }
+    /* =========================== TYPOGRAPHY =========================== */
+    .font-display { font-family: 'Bricolage Grotesque', system-ui, sans-serif; letter-spacing: -0.03em; }
+    .font-italic  { font-family: 'Fraunces', Georgia, serif; font-style: italic; letter-spacing: -0.02em; }
+    .font-mono    { font-family: 'JetBrains Mono', monospace; }
+    .text-balance { text-wrap: balance; }
 
-/* How */
-.how-list { list-style: none; counter-reset: step; }
-.how-list li {
-    counter-increment: step;
-    background: #1E293B;
-    border: 1px solid #334155;
-    border-radius: 12px;
-    padding: 20px 24px 20px 68px;
-    margin-bottom: 12px;
-    position: relative;
-}
-.how-list li::before {
-    content: counter(step);
-    position: absolute;
-    left: 20px;
-    top: 18px;
-    width: 36px; height: 36px;
-    background: #3B82F6;
-    color: #fff;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 16px;
-}
-.how-list h3 { color: #fff; font-size: 15px; margin-bottom: 4px; }
-.how-list p { color: #94A3B8; font-size: 14px; margin: 0; }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    pre { margin: 0; }
 
-/* Threat */
-.threat-bar {
-    background: #1E293B;
-    border: 1px solid #334155;
-    border-radius: 12px;
-    padding: 24px;
-    margin-bottom: 12px;
-}
-.threat-bar h3 { color: #fff; font-size: 15px; margin-bottom: 8px; }
-.threat-bar p { color: #94A3B8; font-size: 14px; margin: 0; }
-.threat-bar .num { color: #EF4444; font-weight: 700; }
+    /* =========================== LAYOUT =========================== */
+    .container { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+    @media (min-width: 1024px) { .container { padding: 0 40px; } }
+    .section { position: relative; padding: 96px 0; }
+    @media (min-width: 1024px) { .section { padding: 128px 0; } }
+    .section-border { border-top: 1px solid var(--hairline); }
 
-/* Footer */
-footer {
-    text-align: center;
-    padding: 40px 24px;
-    border-top: 1px solid #1E293B;
-    color: #64748B;
-    font-size: 13px;
-}
-footer a { color: #3B82F6; text-decoration: none; margin: 0 8px; }
-</style>
+    /* =========================== ANIMATIONS =========================== */
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fade-in {
+      from { opacity: 0; } to { opacity: 1; }
+    }
+    @keyframes pulse-soft {
+      0%, 100% { opacity: 0.4; }
+      50%      { opacity: 0.9; }
+    }
+    @keyframes glow-border {
+      0%, 100% { box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2), 0 10px 40px -10px rgba(59, 130, 246, 0.3); }
+      50%      { box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.4), 0 10px 60px -10px rgba(59, 130, 246, 0.5); }
+    }
+    .anim-fade-up    { animation: fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) both; }
+    .anim-fade-in    { animation: fade-in 1.2s ease-out both; }
+    .anim-pulse-soft { animation: pulse-soft 3s ease-in-out infinite; }
+    .anim-glow       { animation: glow-border 4s ease-in-out infinite; }
+
+    /* =========================== BACKGROUNDS =========================== */
+    .grid-bg {
+      position: absolute; inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(59, 130, 246, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59, 130, 246, 0.06) 1px, transparent 1px);
+      background-size: 56px 56px;
+    }
+    .radial-fade {
+      -webkit-mask-image: radial-gradient(ellipse at center, black 35%, transparent 75%);
+              mask-image: radial-gradient(ellipse at center, black 35%, transparent 75%);
+    }
+    .blur-orb {
+      position: absolute; border-radius: 9999px; pointer-events: none;
+      filter: blur(60px);
+    }
+
+    .blue-glow {
+      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.25), 0 20px 60px -20px rgba(59, 130, 246, 0.5);
+    }
+
+    /* =========================== NAV =========================== */
+    .nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      background: rgba(10, 22, 40, 0.75);
+      border-bottom: 1px solid var(--hairline);
+    }
+    .nav-inner {
+      max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    @media (min-width: 1024px) { .nav-inner { padding: 0 40px; } }
+    .nav-brand { display: flex; align-items: center; gap: 8px; }
+    .nav-brand-text { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; font-size: 20px; letter-spacing: -0.03em; }
+    .nav-links { display: none; gap: 32px; font-size: 14px; color: var(--slate-400); }
+    @media (min-width: 768px) { .nav-links { display: flex; align-items: center; } }
+    .nav-links a { transition: color 0.15s; }
+    .nav-links a:hover { color: var(--slate-100); }
+
+    /* =========================== BUTTONS =========================== */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 16px; border-radius: 9999px;
+      font-size: 14px; font-weight: 500;
+      transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+      border: 1px solid transparent;
+    }
+    .btn-primary { background: var(--blue-500); color: white; }
+    .btn-primary:hover { background: var(--blue-400); }
+    .btn-ghost {
+      border-color: var(--hairline);
+      background: rgba(15, 29, 54, 0.6);
+    }
+    .btn-ghost:hover { background: var(--navy-soft); }
+    .btn-lg { padding: 14px 24px; font-size: 15px; }
+    .btn-xl { padding: 16px 28px; font-size: 15px; }
+
+    /* =========================== PILL / BADGE =========================== */
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 4px 12px; border-radius: 9999px;
+      border: 1px solid var(--hairline); background: rgba(15, 29, 54, 0.6);
+    }
+    .pill-dot {
+      width: 6px; height: 6px; border-radius: 9999px; background: var(--blue-400);
+    }
+    .pill-label {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase;
+      letter-spacing: 0.2em; color: var(--slate-400);
+    }
+
+    /* =========================== HERO =========================== */
+    .hero { padding-top: 128px; padding-bottom: 96px; position: relative; overflow: hidden; }
+    @media (min-width: 1024px) { .hero { padding-top: 160px; padding-bottom: 128px; } }
+    .hero-orb {
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 700px; height: 700px; background: rgba(59, 130, 246, 0.10);
+    }
+    .hero h1 {
+      font-family: 'Bricolage Grotesque', sans-serif;
+      font-weight: 500;
+      font-size: 48px; line-height: 0.95; letter-spacing: -0.03em;
+      margin: 0 0 32px 0;
+    }
+    @media (min-width: 640px)  { .hero h1 { font-size: 64px; } }
+    @media (min-width: 1024px) { .hero h1 { font-size: 96px; } }
+    .hero p {
+      font-size: 18px; color: var(--slate-400); max-width: 640px;
+      line-height: 1.6; margin: 0 0 40px 0;
+    }
+    @media (min-width: 1024px) { .hero p { font-size: 20px; } }
+    .hero-cta { display: flex; flex-wrap: wrap; gap: 12px; }
+
+    /* Stats strip */
+    .stats {
+      margin-top: 96px;
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px;
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid var(--hairline);
+      border-radius: 16px; overflow: hidden;
+    }
+    @media (min-width: 1024px) { .stats { grid-template-columns: repeat(4, 1fr); } }
+    .stat { background: var(--navy); padding: 24px; }
+    @media (min-width: 1024px) { .stat { padding: 32px; } }
+    .stat-k { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; font-size: 36px; color: var(--blue-400); margin-bottom: 8px; }
+    @media (min-width: 1024px) { .stat-k { font-size: 48px; } }
+    .stat-l { font-size: 14px; color: var(--slate-200); font-weight: 500; }
+    .stat-s { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+
+    /* =========================== SECTION LABELS =========================== */
+    .section-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.25em;
+      color: var(--blue-400);
+      margin-bottom: 16px;
+    }
+    h2.section-title {
+      font-family: 'Bricolage Grotesque', sans-serif; font-weight: 500;
+      font-size: 36px; line-height: 1.05; letter-spacing: -0.03em;
+      margin: 0 0 24px 0;
+    }
+    @media (min-width: 1024px) { h2.section-title { font-size: 60px; } }
+    h3.sub-title {
+      font-family: 'Bricolage Grotesque', sans-serif; font-weight: 500;
+      line-height: 1.05; letter-spacing: -0.03em;
+      margin: 0 0 20px 0;
+    }
+
+    /* =========================== SCENARIO CARDS =========================== */
+    .scenario {
+      display: flex; flex-direction: column; gap: 16px;
+      padding: 24px; border: 1px solid var(--hairline); border-radius: 16px;
+      background: rgba(15, 29, 54, 0.4);
+      transition: background-color 0.2s;
+    }
+    .scenario:hover { background: rgba(15, 29, 54, 0.7); }
+    @media (min-width: 768px) { .scenario { flex-direction: row; align-items: center; gap: 32px; padding: 32px; } }
+    .scenario-tag {
+      flex-shrink: 0; display: flex; align-items: center; gap: 12px;
+    }
+    .scenario-icon {
+      width: 40px; height: 40px; border-radius: 9999px;
+      background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--red-400);
+    }
+    .scenario-channel {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--slate-500);
+    }
+    .scenario-text {
+      flex: 1; font-family: 'Fraunces', serif; font-style: italic; font-size: 20px; color: var(--slate-200); line-height: 1.35;
+    }
+    @media (min-width: 1024px) { .scenario-text { font-size: 24px; } }
+    .scenario-outcome { text-align: left; }
+    @media (min-width: 768px) { .scenario-outcome { text-align: right; max-width: 320px; } }
+    .scenario-outcome-label {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--slate-600); margin-bottom: 4px;
+    }
+    .scenario-outcome-text { font-size: 14px; color: var(--slate-400); }
+
+    /* =========================== COUNTER =========================== */
+    .counter-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 4px 12px; border-radius: 9999px;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      background: rgba(59, 130, 246, 0.05);
+      margin-bottom: 32px;
+    }
+    .counter-pill-dot {
+      position: relative; display: inline-flex; width: 8px; height: 8px;
+    }
+    .counter-pill-dot::before {
+      content: ""; position: absolute; inset: 0; border-radius: 9999px;
+      background: var(--blue-400); opacity: 0.75; animation: pulse-soft 3s ease-in-out infinite;
+    }
+    .counter-pill-dot::after {
+      content: ""; position: absolute; inset: 0; border-radius: 9999px;
+      background: var(--blue-500);
+    }
+    .counter-pill-label {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: var(--blue-300);
+    }
+    .counter-number {
+      font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600;
+      font-size: 80px; line-height: 1; letter-spacing: -0.04em;
+      font-variant-numeric: tabular-nums;
+      background: linear-gradient(to bottom, white, var(--blue-300));
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 32px;
+    }
+    @media (min-width: 640px)  { .counter-number { font-size: 96px; } }
+    @media (min-width: 1024px) { .counter-number { font-size: 128px; } }
+
+    /* =========================== SEGMENTED CONTROL =========================== */
+    .segmented {
+      display: inline-flex; padding: 4px; border-radius: 9999px;
+      border: 1px solid var(--hairline); background: rgba(15, 29, 54, 0.6);
+    }
+    .segmented button {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 20px; border-radius: 9999px;
+      font-size: 14px; font-weight: 500; color: var(--slate-300);
+      transition: background 0.15s, color 0.15s;
+    }
+    .segmented button.active { background: var(--blue-500); color: white; }
+    .segmented button:not(.active):hover { color: var(--slate-100); }
+
+    /* =========================== CARDS / FEATURES =========================== */
+    .card {
+      border: 1px solid var(--hairline); border-radius: 16px;
+      padding: 28px; background: rgba(15, 29, 54, 0.3);
+      transition: background-color 0.2s;
+    }
+    .card:hover { background: rgba(15, 29, 54, 0.6); }
+    .card-icon { color: var(--blue-400); margin-bottom: 20px; }
+    .card-title { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 500; font-size: 24px; letter-spacing: -0.03em; margin: 0 0 8px 0; }
+    .card-title.sm { font-size: 20px; }
+    .card-desc { font-size: 14px; color: var(--slate-400); line-height: 1.6; margin: 0; }
+
+    /* =========================== GRIDS =========================== */
+    .grid-2 { display: grid; grid-template-columns: 1fr; gap: 24px; }
+    @media (min-width: 1024px) { .grid-2 { grid-template-columns: repeat(2, 1fr); } }
+    .grid-3 { display: grid; grid-template-columns: 1fr; gap: 24px; }
+    @media (min-width: 768px)  { .grid-3 { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 1024px) { .grid-3 { grid-template-columns: repeat(3, 1fr); } }
+    .grid-4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: rgba(30, 41, 59, 0.4); border: 1px solid var(--hairline); border-radius: 16px; overflow: hidden; }
+    @media (min-width: 1024px) { .grid-4 { grid-template-columns: repeat(4, 1fr); } }
+    .grid-4 > * { background: var(--navy); padding: 20px; }
+    @media (min-width: 1024px) { .grid-4 > * { padding: 24px; } }
+
+    /* =========================== HERO B2C BLOCK =========================== */
+    .b2c-hero {
+      margin-bottom: 48px; padding: 32px; border-radius: 24px;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      background: linear-gradient(to bottom right, rgba(59, 130, 246, 0.05), var(--navy), var(--navy));
+      position: relative; overflow: hidden;
+    }
+    @media (min-width: 1024px) { .b2c-hero { padding: 48px; } }
+    .b2c-hero-grid { display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center; }
+    @media (min-width: 1024px) { .b2c-hero-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    /* Phone mockup */
+    .phone {
+      position: relative; width: 100%; max-width: 384px; margin: 0 auto;
+      aspect-ratio: 9 / 16;
+      border: 1px solid var(--hairline); border-radius: 40px;
+      background: rgba(15, 29, 54, 0.8);
+      padding: 24px;
+      overflow: hidden;
+    }
+    .phone-notch {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 96px; height: 24px; background: var(--navy); border-radius: 0 0 16px 16px;
+    }
+    .phone-stream { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
+    .phone-msg { padding: 12px; border-radius: 12px; background: rgba(30, 41, 59, 0.4); border: 1px solid var(--hairline); }
+    .phone-msg-head { font-size: 11px; color: var(--slate-500); margin-bottom: 4px; }
+    .phone-msg-body { font-size: 11px; color: var(--slate-300); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .phone-alert {
+      padding: 12px; border-radius: 12px;
+      background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);
+      animation: glow-border 4s ease-in-out infinite;
+    }
+    .phone-alert-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .phone-alert-title { font-size: 11px; font-weight: 500; color: var(--blue-400); }
+    .phone-alert-body { font-size: 11px; color: var(--slate-400); line-height: 1.4; }
+    .phone-msg.dim { opacity: 0.6; }
+
+    /* =========================== FREE CARD B2C =========================== */
+    .free-card {
+      padding: 40px; border-radius: 24px; text-align: center;
+      border: 1px solid rgba(96, 165, 250, 0.3);
+      background: linear-gradient(to bottom right, rgba(59, 130, 246, 0.15), var(--navy));
+      position: relative; overflow: hidden;
+    }
+    @media (min-width: 1024px) { .free-card { padding: 56px; } }
+    .free-card h3 {
+      font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600;
+      font-size: 48px; line-height: 1; letter-spacing: -0.03em;
+      margin: 0 0 16px 0;
+    }
+    @media (min-width: 1024px) { .free-card h3 { font-size: 72px; } }
+    .free-card-desc { font-size: 18px; color: var(--slate-300); max-width: 560px; margin: 0 auto 40px auto; line-height: 1.6; }
+    .free-list {
+      display: grid; grid-template-columns: 1fr; gap: 12px 32px;
+      max-width: 560px; margin: 0 auto 40px auto;
+      text-align: left; font-size: 14px; color: var(--slate-200);
+    }
+    @media (min-width: 640px) { .free-list { grid-template-columns: repeat(2, 1fr); } }
+    .free-list li { display: flex; align-items: flex-start; gap: 10px; }
+    .free-list li svg { color: var(--blue-400); flex-shrink: 0; margin-top: 2px; }
+
+    /* =========================== STORE BADGES =========================== */
+    .store-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; }
+    .store-badge {
+      display: inline-flex; align-items: center; gap: 12px;
+      padding: 12px 20px; border-radius: 12px;
+      background: #000; border: 1px solid var(--slate-700);
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .store-badge:hover { background: #0a0a0a; border-color: var(--blue-500); }
+    .store-badge-text { line-height: 1.1; }
+    .store-badge-sub { font-size: 10px; color: var(--slate-300); }
+    .store-badge-main { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; font-size: 16px; color: white; letter-spacing: -0.01em; }
+
+    /* =========================== B2B ARCH =========================== */
+    .arch {
+      position: relative; overflow: hidden;
+      margin-bottom: 48px; padding: 32px;
+      border: 1px solid var(--hairline); border-radius: 24px;
+      background: rgba(15, 29, 54, 0.3);
+    }
+    @media (min-width: 1024px) { .arch { padding: 48px; } }
+    .arch-flow {
+      display: grid; grid-template-columns: 1fr; gap: 1px;
+      background: rgba(30, 41, 59, 0.4); border: 1px solid var(--hairline);
+      border-radius: 16px; overflow: hidden;
+    }
+    @media (min-width: 768px) { .arch-flow { grid-template-columns: repeat(4, 1fr); } }
+    .arch-step { background: var(--navy); padding: 24px; position: relative; }
+    .arch-step-n { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--slate-600); margin-bottom: 12px; }
+    .arch-step-icon { color: var(--blue-400); margin-bottom: 16px; }
+    .arch-step-title { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 500; font-size: 18px; margin: 0 0 8px 0; letter-spacing: -0.02em; }
+    .arch-step-desc { font-size: 12px; color: var(--slate-400); line-height: 1.6; margin: 0; }
+
+    /* Code sample */
+    .code-box {
+      margin-top: 32px; padding: 20px; border-radius: 12px;
+      border: 1px solid var(--hairline); background: rgba(0, 0, 0, 0.4);
+      overflow-x: auto;
+    }
+    .code-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .code-dots { display: flex; gap: 6px; }
+    .code-dots span { width: 10px; height: 10px; border-radius: 9999px; background: var(--slate-700); }
+    .code-title { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--slate-500); margin-left: 8px; }
+    .code-box pre { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--slate-300); line-height: 1.6; white-space: pre; }
+
+    /* B2B specs mini */
+    .specs { margin-top: 32px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: rgba(30, 41, 59, 0.4); border: 1px solid var(--hairline); border-radius: 12px; overflow: hidden; }
+    @media (min-width: 1024px) { .specs { grid-template-columns: repeat(4, 1fr); } }
+    .specs > div { background: var(--navy); padding: 16px; }
+    .specs-k { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; font-size: 20px; color: var(--blue-400); }
+    .specs-l { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px; }
+
+    /* =========================== INTEL SECTION =========================== */
+    .intel {
+      margin-bottom: 48px; padding: 32px;
+      border: 1px solid var(--hairline); border-radius: 24px;
+      background: rgba(15, 29, 54, 0.3);
+      position: relative; overflow: hidden;
+    }
+    @media (min-width: 1024px) { .intel { padding: 48px; } }
+    .intel-grid { display: grid; grid-template-columns: 1fr; gap: 40px; }
+    @media (min-width: 1024px) { .intel-grid { grid-template-columns: 2fr 3fr; } }
+
+    .intel-item { border-left: 2px solid rgba(59, 130, 246, 0.5); padding-left: 20px; margin-bottom: 24px; }
+    .intel-item-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: var(--blue-400); }
+    .intel-item-title { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; font-size: 18px; color: var(--slate-100); }
+    .intel-item-desc { font-size: 14px; color: var(--slate-400); line-height: 1.6; margin: 0; }
+    .intel-item-desc .highlight { color: var(--slate-200); }
+
+    /* Dashboard mockup */
+    .dash {
+      border: 1px solid var(--hairline); border-radius: 16px;
+      background: var(--navy); padding: 24px; position: relative;
+    }
+    @media (min-width: 1024px) { .dash { padding: 28px; } }
+    .dash-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: 16px; margin-bottom: 24px; border-bottom: 1px solid var(--hairline);
+    }
+    .dash-head-sub { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.1em; }
+    .dash-head-title { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; font-size: 18px; margin-top: 2px; }
+    .dash-live { display: flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--blue-400); }
+    .dash-live-dot {
+      position: relative; width: 6px; height: 6px;
+    }
+    .dash-live-dot::before {
+      content: ""; position: absolute; inset: 0; border-radius: 9999px;
+      background: var(--blue-400); opacity: 0.75; animation: pulse-soft 3s ease-in-out infinite;
+    }
+    .dash-live-dot::after {
+      content: ""; position: absolute; inset: 0; border-radius: 9999px; background: var(--blue-500);
+    }
+    .dash-kpis { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px; }
+    @media (min-width: 640px) { .dash-kpis { grid-template-columns: repeat(2, 1fr); } }
+    .kpi { border: 1px solid var(--hairline); border-radius: 12px; padding: 16px; background: rgba(15, 29, 54, 0.4); }
+    .kpi.highlight { background: linear-gradient(to bottom right, rgba(59, 130, 246, 0.1), rgba(15, 29, 54, 0.4)); }
+    .kpi-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+    .kpi-value { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; font-size: 32px; font-variant-numeric: tabular-nums; line-height: 1; }
+    @media (min-width: 1024px) { .kpi-value { font-size: 36px; } }
+    .kpi-value.blue { color: var(--blue-400); }
+    .kpi-sub { font-family: 'JetBrains Mono', monospace; font-size: 11px; margin-top: 4px; }
+    .kpi-sub.green { color: var(--green-400); }
+    .kpi-sub.muted { color: var(--slate-500); }
+
+    .top-domains { padding-top: 16px; margin-bottom: 16px; border-top: 1px solid var(--hairline); }
+    .top-domains-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
+    .top-domains-list { display: flex; flex-direction: column; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    .top-domain-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 12px; border-radius: 6px;
+      background: rgba(15, 29, 54, 0.4); border: 1px solid var(--hairline);
+    }
+    .top-domain-row span:first-child { color: var(--slate-300); }
+    .top-domain-row span:last-child { color: var(--blue-400); font-variant-numeric: tabular-nums; }
+
+    .dash-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+      padding: 10px; border-radius: 8px;
+      background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3);
+      color: var(--blue-300);
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+    .dash-btn:hover { background: rgba(59, 130, 246, 0.2); }
+
+    /* =========================== PLAN PREMIUM =========================== */
+    .premium {
+      position: relative; overflow: hidden;
+      border: 1px solid rgba(96, 165, 250, 0.3); border-radius: 24px;
+      background: linear-gradient(to bottom right, var(--navy-soft), var(--navy), var(--navy-soft));
+    }
+    .premium-inner {
+      position: relative; padding: 32px;
+      display: grid; grid-template-columns: 1fr; gap: 40px;
+    }
+    @media (min-width: 1024px) { .premium-inner { padding: 48px; grid-template-columns: 2fr 3fr; } }
+    .premium-left h3 {
+      font-family: 'Bricolage Grotesque', sans-serif; font-weight: 500;
+      font-size: 36px; line-height: 1.05; letter-spacing: -0.03em; margin: 0 0 20px 0;
+    }
+    @media (min-width: 1024px) { .premium-left h3 { font-size: 48px; } }
+    .premium-left p { color: var(--slate-400); line-height: 1.6; margin: 0 0 32px 0; }
+    .premium-right {
+      border-top: 1px solid var(--hairline); padding-top: 32px;
+    }
+    @media (min-width: 1024px) {
+      .premium-right { border-top: none; border-left: 1px solid var(--hairline); padding-top: 0; padding-left: 40px; }
+    }
+    .premium-list-label {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 20px;
+    }
+    .premium-list {
+      display: grid; grid-template-columns: 1fr; gap: 12px 24px;
+      font-size: 14px; color: var(--slate-200);
+    }
+    @media (min-width: 640px) { .premium-list { grid-template-columns: repeat(2, 1fr); } }
+    .premium-list li { display: flex; align-items: flex-start; gap: 10px; }
+    .premium-list li svg { color: var(--blue-400); flex-shrink: 0; margin-top: 2px; }
+
+    .premium-price { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--hairline); display: flex; align-items: flex-end; justify-content: space-between; }
+    .premium-price-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.1em; }
+    .premium-price-value { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 500; font-size: 24px; margin-top: 4px; }
+
+    /* =========================== CTA FINAL =========================== */
+    .cta { position: relative; overflow: hidden; padding: 112px 0; }
+    @media (min-width: 1024px) { .cta { padding: 160px 0; } }
+    .cta-orb {
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 600px; height: 600px; background: rgba(59, 130, 246, 0.10);
+    }
+    .cta-inner { max-width: 900px; margin: 0 auto; text-align: center; position: relative; padding: 0 24px; }
+    .cta h2 {
+      font-family: 'Bricolage Grotesque', sans-serif; font-weight: 500;
+      font-size: 48px; line-height: 1.02; letter-spacing: -0.03em; margin: 0 0 32px 0;
+    }
+    @media (min-width: 1024px) { .cta h2 { font-size: 84px; } }
+    .cta p { font-size: 18px; color: var(--slate-400); max-width: 560px; margin: 0 auto 40px auto; line-height: 1.6; }
+    .cta-secondary {
+      margin-top: 40px; display: flex; flex-direction: column; align-items: center; gap: 20px;
+    }
+    .cta-secondary-label {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.25em;
+    }
+
+    /* =========================== FOOTER =========================== */
+    footer { border-top: 1px solid var(--hairline); padding: 48px 0; background: var(--navy); }
+    .footer-inner {
+      max-width: 1280px; margin: 0 auto; padding: 0 24px;
+      display: flex; flex-direction: column; align-items: flex-start; gap: 24px;
+    }
+    @media (min-width: 768px) { .footer-inner { flex-direction: row; align-items: center; justify-content: space-between; padding: 0 40px; } }
+    .footer-brand { display: flex; align-items: center; gap: 12px; }
+    .footer-brand-name { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; font-size: 20px; }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 8px 32px; font-size: 14px; color: var(--slate-400); }
+    .footer-links a:hover { color: var(--slate-100); }
+    .footer-bottom { max-width: 1280px; margin: 0 auto; padding: 32px 24px 0 24px; margin-top: 32px; border-top: 1px solid var(--hairline); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--slate-600); }
+    @media (min-width: 768px) { .footer-bottom { padding: 32px 40px 0 40px; } }
+
+    /* =========================== TOGGLE VISIBILITY =========================== */
+    .hidden { display: none !important; }
+
+    /* =========================== HEADING HELPERS =========================== */
+    .mb-16 { margin-bottom: 64px; }
+    .mb-12 { margin-bottom: 48px; }
+    .space-y-4 > * + * { margin-top: 16px; }
+    .text-center { text-align: center; }
+    .flex-wrap { flex-wrap: wrap; }
+    .items-end { align-items: flex-end; }
+
+    /* =========================== UTILITY =========================== */
+    .ital-blue { font-family: 'Fraunces', serif; font-style: italic; color: var(--blue-400); }
+
+    .stream-header { display: flex; flex-direction: column; gap: 24px; margin-bottom: 56px; }
+    @media (min-width: 1024px) { .stream-header { flex-direction: row; align-items: flex-end; justify-content: space-between; } }
+  </style>
 </head>
 <body>
 
-<div class="hero">
-    <div class="shield">
-        <svg viewBox="0 0 24 24"><path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z"/></svg>
+  <!-- ============ NAV ============ -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="#" class="nav-brand" aria-label="24defend - inicio">
+        <svg width="28" height="28" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M26 22 L26 16 Q26 11 32 11 Q38 11 38 16 L38 22" stroke="#3B82F6" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+          <rect x="23.5" y="20" width="17" height="10" rx="1.8" stroke="#3B82F6" stroke-width="2.2" fill="#0B1731"/>
+          <path d="M10 26 L54 26 L50 50 L32 60 L14 50 Z" stroke="#3B82F6" stroke-width="2.2" stroke-linejoin="round" fill="none"/>
+          <text x="32" y="48" text-anchor="middle" font-family="Inter Tight, system-ui, sans-serif" font-weight="800" font-size="15" fill="white" letter-spacing="-0.5">24</text>
+        </svg>
+        <span class="nav-brand-text">24defend</span>
+      </a>
+      <div class="nav-links">
+        <a href="#amenazas">El fraude</a>
+        <a href="#producto">Producto</a>
+        <a href="#empresas">Empresas</a>
+      </div>
+      <a href="#contacto" class="btn btn-primary">
+        Hablar con ventas
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+      </a>
     </div>
-    <h1>24Defend</h1>
-    <p class="tagline">Bloquea phishing bancario antes del click</p>
-    <p class="hero-desc">
-        El 55% de los fraudes en Uruguay llegan por links que imitan a tu banco.
-        24Defend los detecta y bloquea en tiempo real, antes de que puedas abrirlos.
-        Funciona con WhatsApp, SMS, email y cualquier app.
-    </p>
-    <a class="cta" href="#">Proximamente en App Store</a>
-    <span class="cta-sub">Gratis. Sin publicidad. Sin rastreo.</span>
-</div>
+  </nav>
 
-<div class="stats">
-    <div class="stat"><span class="stat-num">72,000+</span><span class="stat-label">dominios maliciosos bloqueados</span></div>
-    <div class="stat"><span class="stat-num">24</span><span class="stat-label">instituciones de Uruguay protegidas</span></div>
-    <div class="stat"><span class="stat-num">&lt;1s</span><span class="stat-label">tiempo de bloqueo</span></div>
-</div>
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="grid-bg radial-fade"></div>
+    <div class="blur-orb hero-orb"></div>
+    <div class="container" style="position: relative;">
+      <div class="anim-fade-up" style="max-width: 960px;">
+        <div class="pill" style="margin-bottom: 32px;">
+          <span class="pill-dot anim-pulse-soft"></span>
+          <span class="pill-label">Activo en Uruguay · Expandiendo en LatAm</span>
+        </div>
 
-<section>
-    <h2>Por que 24Defend es diferente</h2>
-    <p class="section-sub">No es otro bloqueador de anuncios. Es proteccion financiera disenada para America Latina.</p>
+        <h1 class="text-balance">
+          Un mensaje.<br/>
+          Un click.<br/>
+          <span class="ital-blue">Una cuenta vacía.</span>
+        </h1>
 
-    <div class="diff-grid">
-        <div class="diff-card">
-            <span class="diff-label them">Bloqueadores genericos</span>
-            <h3>Listas globales genericas</h3>
-            <p>AdGuard y NextDNS usan listas globales. No saben que "brou-seguro.com" imita al BROU. Si un dominio no esta en su lista, pasa sin problema.</p>
+        <p class="text-balance">
+          24defend intercepta los enlaces fraudulentos que llegan a tu teléfono por SMS, WhatsApp, correo y navegador — al momento del click, antes de que el sitio cargue.
+        </p>
+
+        <div class="hero-cta">
+          <a href="#personas" class="btn btn-primary btn-lg blue-glow">
+            Para personas
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+          </a>
+          <a href="#empresas" class="btn btn-ghost btn-lg">
+            Para Empresas
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+          </a>
         </div>
-        <div class="diff-card highlight">
-            <span class="diff-label us">24Defend</span>
-            <h3>Conoce a tus instituciones</h3>
-            <p>Sabemos que BROU, Itau, Santander, OCA, Prex y Antel son marcas reales en Uruguay. Si un dominio se parece a una de ellas, lo detectamos aunque nunca haya sido reportado.</p>
-        </div>
-        <div class="diff-card">
-            <span class="diff-label them">Bloqueadores genericos</span>
-            <h3>Solo bloquean lo conocido</h3>
-            <p>Dependen de reportes. Un dominio de phishing nuevo puede estar activo horas antes de ser detectado.</p>
-        </div>
-        <div class="diff-card highlight">
-            <span class="diff-label us">24Defend</span>
-            <h3>Detecta lo desconocido</h3>
-            <p>Inteligencia artificial analiza cada dominio sospechoso en tiempo real: edad del dominio, certificado SSL, similitud con marcas oficiales. No necesita que alguien lo reporte primero.</p>
-        </div>
-        <div class="diff-card">
-            <span class="diff-label them">Bloqueadores genericos</span>
-            <h3>Mismo producto para todo el mundo</h3>
-            <p>Disenados en Silicon Valley. No entienden que el fraude en LatAm llega por WhatsApp, usa espanol, y se enfoca en bancos locales.</p>
-        </div>
-        <div class="diff-card highlight">
-            <span class="diff-label us">24Defend</span>
-            <h3>Hecho para America Latina</h3>
-            <p>Vocabulario de phishing en espanol ("verificar cuenta", "bloqueo urgente"). Marcas uruguayas y regionales. Entrenado con patrones reales de fraude en la region.</p>
-        </div>
+      </div>
+
+      <div class="stats anim-fade-in" style="animation-delay: 0.4s;">
+        <div class="stat"><div class="stat-k">24/7</div><div class="stat-l">Defensa activa</div><div class="stat-s">sin intervención del usuario</div></div>
+        <div class="stat"><div class="stat-k">4</div><div class="stat-l">Canales cubiertos</div><div class="stat-s">SMS · Email · WhatsApp · Web</div></div>
+        <div class="stat"><div class="stat-k">100%</div><div class="stat-l">Gratis para personas</div><div class="stat-s">sin costo, sin anuncios</div></div>
+        <div class="stat"><div class="stat-k">Local</div><div class="stat-l">Análisis en tu teléfono</div><div class="stat-s">tu contenido nunca sale</div></div>
+      </div>
     </div>
-</section>
+  </section>
 
-<section>
-    <h2>La amenaza es real</h2>
-    <p class="section-sub">Los numeros del fraude digital en Uruguay y America Latina.</p>
+  <!-- ============ ESCENARIOS ============ -->
+  <section id="amenazas" class="section section-border">
+    <div class="container">
+      <div style="max-width: 768px; margin-bottom: 64px;">
+        <div class="section-label">─── Cómo te atacan</div>
+        <h2 class="section-title text-balance">
+          Ya los recibiste.<br/>
+          <span class="ital-blue">Y vos también hiciste click.</span>
+        </h2>
+        <p style="font-size: 18px; color: var(--slate-400); line-height: 1.6;">
+          Los mensajes de fraude dejaron de tener faltas de ortografía hace años. Hoy imitan perfectamente a tu banco, tu compañía telefónica, la Impositiva o una empresa de envíos. Basta un segundo de distracción.
+        </p>
+      </div>
 
-    <div class="threat-bar">
-        <h3><span class="num">14,264</span> incidentes de ciberseguridad en Uruguay en 2024</h3>
-        <p>Phishing fue la modalidad mas frecuente. Fuente: CERTuy 2025.</p>
+      <div class="space-y-4">
+        <div class="scenario">
+          <div class="scenario-tag">
+            <div class="scenario-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div>
+            <span class="scenario-channel">Vía SMS</span>
+          </div>
+          <div class="scenario-text">"Tu paquete está retenido en aduana. Pagá US$2 para liberarlo: http://aduana-uy.co/pago"</div>
+          <div class="scenario-outcome">
+            <div class="scenario-outcome-label">Resultado</div>
+            <div class="scenario-outcome-text">Robo de datos de tarjeta en sitio clonado.</div>
+          </div>
+        </div>
+
+        <div class="scenario">
+          <div class="scenario-tag">
+            <div class="scenario-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div>
+            <span class="scenario-channel">Vía WhatsApp</span>
+          </div>
+          <div class="scenario-text">"Hola, soy de tu banco. Detectamos movimientos raros en tu cuenta. Ingresá acá para verificar."</div>
+          <div class="scenario-outcome">
+            <div class="scenario-outcome-label">Resultado</div>
+            <div class="scenario-outcome-text">Captura de credenciales bancarias.</div>
+          </div>
+        </div>
+
+        <div class="scenario">
+          <div class="scenario-tag">
+            <div class="scenario-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div>
+            <span class="scenario-channel">Vía Correo</span>
+          </div>
+          <div class="scenario-text">"Estimado cliente, su factura está disponible. Pague hasta el 25/04 para evitar el corte del servicio: pagos-online.site/factura"</div>
+          <div class="scenario-outcome">
+            <div class="scenario-outcome-label">Resultado</div>
+            <div class="scenario-outcome-text">Sitio clonado que captura datos de tarjeta.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-center" style="margin-top: 48px;">
+        <p class="font-display text-balance" style="font-weight: 500; font-size: 24px; color: var(--slate-300); max-width: 768px; margin: 0 auto; line-height: 1.3;">
+          24defend <span class="ital-blue">intercepta cada uno</span> de estos enlaces en el momento exacto en que los tocás, antes de que el sitio cargue.
+        </p>
+      </div>
     </div>
-    <div class="threat-bar">
-        <h3><span class="num">155%</span> de aumento en estafas en America Latina en 2025</h3>
-        <p>Los intentos de fraude por ingenieria social casi se triplicaron. Fuente: BioCatch 2026.</p>
+  </section>
+
+  <!-- ============ CONTADOR LIVE ============ -->
+  <section class="section section-border" style="overflow: hidden;">
+    <div class="grid-bg radial-fade" style="opacity: 0.5;"></div>
+    <div class="blur-orb" style="top: 50%; left: 50%; transform: translate(-50%, -50%); width: 800px; height: 400px; background: rgba(59, 130, 246, 0.10);"></div>
+    <div class="container" style="position: relative;">
+      <div class="text-center">
+        <div class="counter-pill">
+          <span class="counter-pill-dot"></span>
+          <span class="counter-pill-label">Base de datos activa</span>
+        </div>
+
+        <div class="section-label" style="margin-bottom: 24px;">─── Dominios en la red</div>
+
+        <div class="counter-number" id="fraudCounter">72.481</div>
+
+        <p class="font-display text-balance" style="font-weight: 500; font-size: 20px; color: var(--slate-300); max-width: 640px; margin: 0 auto 40px auto; line-height: 1.3;">
+          dominios de phishing conocidos en la base de datos de 24defend, <span class="ital-blue">actualizados cada 24 horas.</span>
+        </p>
+
+        <div class="grid-4" style="max-width: 896px; margin: 0 auto;">
+          <div style="text-align: left;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--blue-400); margin-bottom: 12px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <div class="font-display" style="font-weight: 600; font-size: 28px;">42%</div>
+            <div class="stat-s">SMS</div>
+          </div>
+          <div style="text-align: left;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--blue-400); margin-bottom: 12px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <div class="font-display" style="font-weight: 600; font-size: 28px;">31%</div>
+            <div class="stat-s">WhatsApp</div>
+          </div>
+          <div style="text-align: left;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--blue-400); margin-bottom: 12px;"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            <div class="font-display" style="font-weight: 600; font-size: 28px;">18%</div>
+            <div class="stat-s">Correo</div>
+          </div>
+          <div style="text-align: left;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--blue-400); margin-bottom: 12px;"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+            <div class="font-display" style="font-weight: 600; font-size: 28px;">9%</div>
+            <div class="stat-s">Navegador</div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="threat-bar">
-        <h3><span class="num">55%</span> de los mensajes de fraude contienen un link</h3>
-        <p>El vector mas comun. Un link a un sitio clonado del banco. 24Defend lo bloquea antes de que cargue. Fuente: Proofpoint 2024.</p>
+  </section>
+
+  <!-- ============ PRODUCTO — TOGGLE B2C/B2B ============ -->
+  <section id="producto" class="section section-border">
+    <div class="container">
+      <div class="stream-header">
+        <div style="max-width: 640px;">
+          <div class="section-label">─── El producto</div>
+          <h2 class="section-title text-balance">
+            Dos audiencias.<br/>
+            <span class="ital-blue">Una arquitectura.</span>
+          </h2>
+        </div>
+        <div class="segmented" role="tablist">
+          <button class="seg-btn active" data-audience="personas">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Personas
+          </button>
+          <button class="seg-btn" data-audience="empresas">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>
+            Empresas
+          </button>
+        </div>
+      </div>
+
+      <!-- ============ B2C PANEL ============ -->
+      <div id="panel-personas" class="panel">
+        <div id="personas" class="b2c-hero">
+          <div class="blur-orb" style="top: -80px; right: -80px; width: 320px; height: 320px; background: rgba(59, 130, 246, 0.10);"></div>
+          <div class="b2c-hero-grid" style="position: relative;">
+            <div>
+              <div class="section-label">Para vos y los tuyos</div>
+              <h3 class="sub-title text-balance" style="font-size: 32px;">
+                Ya no tengas miedo <span class="ital-blue">cada vez</span> que te llega un link.
+              </h3>
+              <p style="color: var(--slate-400); line-height: 1.6; margin-bottom: 24px;">
+                El fraude no discrimina edad ni educación financiera. 24defend trabaja en silencio en tu teléfono y en el de los tuyos, para que tocar un link deje de ser una decisión de riesgo.
+              </p>
+              <ul style="font-size: 14px; color: var(--slate-300); display: flex; flex-direction: column; gap: 8px;">
+                <li style="display: flex; gap: 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--blue-400); flex-shrink: 0; margin-top: 2px;"><polyline points="20 6 9 17 4 12"/></svg>Instalación en 2 minutos</li>
+                <li style="display: flex; gap: 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--blue-400); flex-shrink: 0; margin-top: 2px;"><polyline points="20 6 9 17 4 12"/></svg>Funciona en segundo plano</li>
+                <li style="display: flex; gap: 10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--blue-400); flex-shrink: 0; margin-top: 2px;"><polyline points="20 6 9 17 4 12"/></svg>No vas a notar que está ahí — hasta que te salve</li>
+              </ul>
+            </div>
+
+            <div class="phone">
+              <div class="phone-notch"></div>
+              <div class="phone-stream">
+                <div class="phone-msg">
+                  <div class="phone-msg-head">SMS · ahora</div>
+                  <div class="phone-msg-body">Su paquete está retenido. Pague US$2 aquí: aduana-uy.co/pago</div>
+                </div>
+                <div class="phone-alert">
+                  <div class="phone-alert-head">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--blue-400);"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+                    <span class="phone-alert-title">24defend bloqueó este enlace</span>
+                  </div>
+                  <div class="phone-alert-body">Dominio de phishing suplantando a una empresa de envíos. Tu información está segura.</div>
+                </div>
+                <div style="height: 8px;"></div>
+                <div class="phone-msg dim">
+                  <div class="phone-msg-head">WhatsApp · ayer</div>
+                  <div class="phone-msg-body">Hola, soy de tu banco. Necesitamos verificar...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- B2C features -->
+        <div class="grid-2 mb-12">
+          <div class="card">
+            <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
+            <h3 class="card-title">Bloqueo al momento del click</h3>
+            <p class="card-desc">Cuando tocás un link peligroso, 24defend intercepta la conexión antes de que el sitio fraudulento cargue.</p>
+          </div>
+          <div class="card">
+            <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+            <h3 class="card-title">Funciona en WhatsApp, SMS, correo y navegador</h3>
+            <p class="card-desc">Cubrimos los cuatro canales donde llegan los mensajes de fraude.</p>
+          </div>
+          <div class="card">
+            <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>
+            <h3 class="card-title">Pensado para quien no es técnico</h3>
+            <p class="card-desc">Se instala una vez y trabaja en silencio. Sin configurar nada raro.</p>
+          </div>
+          <div class="card">
+            <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <h3 class="card-title">Tu contenido nunca sale del teléfono</h3>
+            <p class="card-desc">El análisis corre localmente. No leemos tus mensajes ni los subimos a la nube.</p>
+          </div>
+        </div>
+
+        <!-- Free card -->
+        <div class="free-card">
+          <div class="blur-orb" style="top: -80px; right: -80px; width: 320px; height: 320px; background: rgba(59, 130, 246, 0.15);"></div>
+          <div class="blur-orb" style="bottom: -80px; left: -80px; width: 320px; height: 320px; background: rgba(59, 130, 246, 0.10);"></div>
+          <div style="position: relative;">
+            <div class="pill" style="margin-bottom: 24px; border-color: rgba(59, 130, 246, 0.3); background: rgba(59, 130, 246, 0.10);">
+              <span class="pill-label" style="color: var(--blue-300);">Para personas</span>
+            </div>
+            <h3>Gratis <span class="ital-blue">siempre.</span></h3>
+            <p class="free-card-desc">24defend es gratis para cualquier persona. Sin anuncios, sin plan pago, sin letra chica.</p>
+            <ul class="free-list">
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Bloqueo de enlaces maliciosos</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Cobertura SMS, WhatsApp, correo, web</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Alertas claras, sin jerga técnica</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Análisis local, sin subir tus datos</li>
+            </ul>
+            <div class="store-row">
+              <a href="#" class="store-badge" aria-label="Descargar en App Store">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+                <div class="store-badge-text">
+                  <div class="store-badge-sub">Descargar en</div>
+                  <div class="store-badge-main">App Store</div>
+                </div>
+              </a>
+              <a href="#" class="store-badge" aria-label="Disponible en Google Play">
+                <svg width="26" height="26" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="gp1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00A0FF"/><stop offset="100%" stop-color="#00E2FF"/></linearGradient>
+                    <linearGradient id="gp2" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#FFBD00"/><stop offset="100%" stop-color="#FFA500"/></linearGradient>
+                    <linearGradient id="gp3" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FF3A44"/><stop offset="100%" stop-color="#C31162"/></linearGradient>
+                    <linearGradient id="gp4" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#32A071"/><stop offset="100%" stop-color="#2DA771"/></linearGradient>
+                  </defs>
+                  <path d="M3.5 2.2v19.6c0 .4.2.7.5.9l10.2-10.7L4 1.3c-.3.2-.5.5-.5.9z" fill="url(#gp1)"/>
+                  <path d="M17.8 8.7 14.2 12l3.6 3.3 4.1-2.3c1.2-.7 1.2-2.3 0-3l-4.1-2.3z" fill="url(#gp2)"/>
+                  <path d="M4 22.7c.3.1.6.1.9-.1l13-7.3-3.6-3.3L4 22.7z" fill="url(#gp3)"/>
+                  <path d="M4 1.3 14.2 12l3.6-3.3-13-7.3c-.3-.2-.6-.2-.9-.1z" fill="url(#gp4)"/>
+                </svg>
+                <div class="store-badge-text">
+                  <div class="store-badge-sub">Proximamente en</div>
+                  <div class="store-badge-main">Google Play</div>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ B2B PANEL ============ -->
+      <div id="panel-empresas" class="panel hidden">
+        <div id="empresas">
+          <!-- Arquitectura -->
+          <div class="arch">
+            <div class="grid-bg" style="opacity: 0.4;"></div>
+            <div style="position: relative;">
+              <div class="section-label">─── Arquitectura</div>
+              <h3 class="sub-title text-balance" style="font-size: 32px; margin-bottom: 40px;">
+                Detección en el dispositivo.<br/>
+                <span class="ital-blue">Inteligencia en la red.</span>
+              </h3>
+
+              <div class="arch-flow">
+                <div class="arch-step">
+                  <div class="arch-step-n">01</div>
+                  <svg class="arch-step-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>
+                  <div class="arch-step-title">Captura local</div>
+                  <p class="arch-step-desc">NEDNSProxy / BIND_VPN_SERVICE interceptan resoluciones DNS en el dispositivo.</p>
+                </div>
+                <div class="arch-step">
+                  <div class="arch-step-n">02</div>
+                  <svg class="arch-step-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
+                  <div class="arch-step-title">Clasificacion local</div>
+                  <p class="arch-step-desc">Modelo ML + reglas de marca clasifican el dominio sin salir del telefono.</p>
+                </div>
+                <div class="arch-step">
+                  <div class="arch-step-n">03</div>
+                  <svg class="arch-step-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
+                  <div class="arch-step-title">Verificacion en la nube</div>
+                  <p class="arch-step-desc">Dominios sospechosos se verifican contra la base de datos centralizada y un agente de IA.</p>
+                </div>
+                <div class="arch-step">
+                  <div class="arch-step-n">04</div>
+                  <svg class="arch-step-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+                  <div class="arch-step-title">Evento y bloqueo</div>
+                  <p class="arch-step-desc">Webhook a la empresa + bloqueo instantáneo al usuario final.</p>
+                </div>
+              </div>
+
+              <!-- Code sample -->
+              <div class="code-box">
+                <div class="code-head">
+                  <div class="code-dots"><span></span><span></span><span></span></div>
+                  <span class="code-title">POST /v1/events/threat-detected</span>
+                </div>
+<pre>{
+  "event_id": "evt_7f2a...",
+  "company_id": "cmp_9a3f...",
+  "user_token": "hmac_sha256(...)",     // anonimizado
+  "channel": "whatsapp",
+  "domain_hash": "sha256(...)",
+  "classification": "phishing_banking",
+  "confidence": 0.94,
+  "action": "blocked",
+  "timestamp": "2026-04-18T14:22:31Z"
+}</pre>
+              </div>
+
+              <!-- Specs -->
+              <div class="specs">
+                <div><div class="specs-k">&lt;200ms</div><div class="specs-l">Latencia p95</div></div>
+                <div><div class="specs-k">99.9%</div><div class="specs-l">Uptime SLA</div></div>
+                <div><div class="specs-k">On-device</div><div class="specs-l">ML + reglas</div></div>
+                <div><div class="specs-k">UUID</div><div class="specs-l">ID anonimo</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Inteligencia de fraude -->
+          <div class="intel">
+            <div class="grid-bg" style="opacity: 0.3;"></div>
+            <div class="blur-orb" style="bottom: -80px; left: -80px; width: 320px; height: 320px; background: rgba(59, 130, 246, 0.10);"></div>
+            <div class="intel-grid" style="position: relative;">
+              <div>
+                <div class="section-label">─── Inteligencia de fraude</div>
+                <h3 class="sub-title text-balance" style="font-size: 32px;">Reportá. Medí. <span class="ital-blue">Justificá el ROI.</span></h3>
+                <p style="color: var(--slate-400); line-height: 1.6; margin-bottom: 32px;">Capacidades incluidas en el plan Premium que convierten a 24defend en un centro de valor medible para tu empresa.</p>
+
+                <div class="intel-item">
+                  <div class="intel-item-head">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>
+                    <span class="intel-item-title">Reporte en tiempo real</span>
+                  </div>
+                  <p class="intel-item-desc">Reportá dominios sospechosos directo a la red federada desde el dashboard. En minutos, todos los usuarios de 24defend quedan protegidos contra ese dominio — incluidos los clientes de tu empresa.</p>
+                </div>
+
+                <div class="intel-item">
+                  <div class="intel-item-head">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                    <span class="intel-item-title">Reporte diario</span>
+                  </div>
+                  <p class="intel-item-desc">Cada mañana, un informe con los <span class="highlight">casos de phishing recibidos y detenidos</span> contra clientes de tu empresa en las últimas 24 horas: dominios atacantes, canales y volumen.</p>
+                </div>
+
+                <div class="intel-item" style="margin-bottom: 0;">
+                  <div class="intel-item-head">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                    <span class="intel-item-title">Reporte ejecutivo mensual</span>
+                  </div>
+                  <p class="intel-item-desc">Evolución de ataques detenidos, tendencias por canal y <span class="highlight">estimación del costo evitado</span> según el ticket promedio de fraude de tu operación.</p>
+                </div>
+              </div>
+
+              <!-- Dashboard mockup -->
+              <div class="dash">
+                <div class="dash-head">
+                  <div>
+                    <div class="dash-head-sub">Reporte ejecutivo · Abril 2026</div>
+                    <div class="dash-head-title">Tu Empresa S.A.</div>
+                  </div>
+                  <div class="dash-live">
+                    <span class="dash-live-dot"></span>
+                    LIVE
+                  </div>
+                </div>
+
+                <div class="dash-kpis">
+                  <div class="kpi">
+                    <div class="kpi-label">Fraudes detenidos</div>
+                    <div class="kpi-value">847</div>
+                    <div class="kpi-sub green">+23% vs. mes anterior</div>
+                  </div>
+                  <div class="kpi highlight">
+                    <div class="kpi-label">Costo estimado evitado</div>
+                    <div class="kpi-value blue">US$ 412K</div>
+                    <div class="kpi-sub muted">según ticket promedio</div>
+                  </div>
+                </div>
+
+                <div class="top-domains">
+                  <div class="top-domains-label">Top dominios reportados</div>
+                  <div class="top-domains-list">
+                    <div class="top-domain-row"><span>factura-pagos.online</span><span>214</span></div>
+                    <div class="top-domain-row"><span>impositiva-verificacion.co</span><span>187</span></div>
+                    <div class="top-domain-row"><span>aduana-liberar.site</span><span>143</span></div>
+                  </div>
+                </div>
+
+                <button class="dash-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>
+                  Reportar nuevo dominio fraudulento
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- B2B features grid -->
+          <div class="grid-3 mb-12">
+            <div class="card">
+              <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
+              <h3 class="card-title sm">Red cruzada de fraude</h3>
+              <p class="card-desc">Blacklist federada entre empresas. Un dominio detectado atacando a un cliente de otra institución ya protege a los suyos en minutos.</p>
+            </div>
+            <div class="card">
+              <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+              <h3 class="card-title sm">Reporte diario de amenazas</h3>
+              <p class="card-desc">Cada mañana, un resumen con los casos de phishing recibidos y detenidos contra clientes de tu empresa en las últimas 24 horas.</p>
+            </div>
+            <div class="card">
+              <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>
+              <h3 class="card-title sm">Reporte en tiempo real</h3>
+              <p class="card-desc">Tu equipo de antifraude envía dominios sospechosos al grid federado desde el dashboard. En minutos, todos los usuarios de 24defend quedan protegidos.</p>
+            </div>
+            <div class="card">
+              <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+              <h3 class="card-title sm">Dashboard operativo</h3>
+              <p class="card-desc">Eventos en tiempo real, cohortes de usuarios protegidos, heatmap geográfico y top dominios atacantes.</p>
+            </div>
+            <div class="card">
+              <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
+              <h3 class="card-title sm">API y webhooks</h3>
+              <p class="card-desc">Push de eventos hacia SIEM o plataforma antifraude. Enriquecimiento bidireccional de señales.</p>
+            </div>
+            <div class="card">
+              <svg class="card-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H4a1 1 0 0 1-1-1v-6a9 9 0 0 1 18 0v6a1 1 0 0 1-1 1h-2a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/></svg>
+              <h3 class="card-title sm">SLA y gerente de cuenta</h3>
+              <p class="card-desc">SLA de incidentes 24/7, roadmap co-construido y soporte técnico dedicado.</p>
+            </div>
+          </div>
+
+          <!-- Plan Premium -->
+          <div class="premium">
+            <div class="grid-bg" style="opacity: 0.4;"></div>
+            <div class="blur-orb" style="top: -160px; right: -160px; width: 384px; height: 384px; background: rgba(59, 130, 246, 0.15);"></div>
+
+            <div class="premium-inner">
+              <div class="premium-left">
+                <div class="section-label">─── Plan Premium</div>
+                <h3 class="text-balance">Recomendá 24defend <span class="ital-blue">y eliminá</span> el riesgo de phishing.</h3>
+                <p>Protegé a tus clientes del fraude que hoy ocurre fuera de tus sistemas. Sin desarrollo, sin integración compleja: tus clientes descargan 24defend y tu empresa gana visibilidad operativa sobre los ataques que reciben.</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                  <a href="#contacto" class="btn btn-primary btn-lg blue-glow">
+                    Agendar demo
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+                  </a>
+                  <a href="#contacto" class="btn btn-ghost btn-lg">One-pager técnico</a>
+                </div>
+              </div>
+
+              <div class="premium-right">
+                <div class="premium-list-label">Incluido en el plan Premium</div>
+                <ul class="premium-list">
+                  <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Red cruzada de fraude</li>
+                  <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Reporte en tiempo real</li>
+                  <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Reporte diario de casos detenidos</li>
+                  <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Reporte ejecutivo mensual con ROI</li>
+                  <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Dashboard operativo</li>
+                  <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>API REST y webhooks</li>
+                  <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Onboarding asistido</li>
+                  <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>SLA de incidentes 24/7</li>
+                  <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Gerente de cuenta dedicado</li>
+                  <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Reportes regulatorios</li>
+                </ul>
+
+                <div class="premium-price">
+                  <div>
+                    <div class="premium-price-label">Pricing</div>
+                    <div class="premium-price-value">Consultar</div>
+                  </div>
+                  <svg width="36" height="36" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M26 22 L26 16 Q26 11 32 11 Q38 11 38 16 L38 22" stroke="#3B82F6" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+                    <rect x="23.5" y="20" width="17" height="10" rx="1.8" stroke="#3B82F6" stroke-width="2.2" fill="#0B1731"/>
+                    <path d="M10 26 L54 26 L50 50 L32 60 L14 50 Z" stroke="#3B82F6" stroke-width="2.2" stroke-linejoin="round" fill="none"/>
+                    <text x="32" y="48" text-anchor="middle" font-family="Inter Tight, system-ui, sans-serif" font-weight="800" font-size="15" fill="white">24</text>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="threat-bar">
-        <h3>Solo el <span class="num">12%</span> de las estafas se denuncian</h3>
-        <p>El costo real del fraude es 6-8 veces mayor que las cifras oficiales. Fuente: INE Uruguay.</p>
+  </section>
+
+  <!-- ============ CTA FINAL ============ -->
+  <section id="contacto" class="cta section-border">
+    <div class="grid-bg radial-fade" style="opacity: 0.6;"></div>
+    <div class="blur-orb cta-orb"></div>
+    <div class="cta-inner">
+      <div style="margin-bottom: 32px;">
+        <svg width="56" height="56" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M26 22 L26 16 Q26 11 32 11 Q38 11 38 16 L38 22" stroke="#3B82F6" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+          <rect x="23.5" y="20" width="17" height="10" rx="1.8" stroke="#3B82F6" stroke-width="2.2" fill="#0B1731"/>
+          <path d="M10 26 L54 26 L50 50 L32 60 L14 50 Z" stroke="#3B82F6" stroke-width="2.2" stroke-linejoin="round" fill="none"/>
+          <text x="32" y="48" text-anchor="middle" font-family="Inter Tight, system-ui, sans-serif" font-weight="800" font-size="15" fill="white">24</text>
+        </svg>
+      </div>
+      <h2 class="text-balance">El próximo mensaje falso<br/><span class="ital-blue">ya está viniendo.</span></h2>
+      <p>Hablemos de cómo proteger a tus clientes, o protegete vos directo hoy.</p>
+      <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;">
+        <a href="#" class="btn btn-primary btn-xl blue-glow">
+          Agendar demo para Empresas
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+        </a>
+      </div>
+      <div class="cta-secondary">
+        <div class="cta-secondary-label">o descargá la app directamente</div>
+        <div class="store-row">
+          <a href="#" class="store-badge" aria-label="Descargar en App Store">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+            <div class="store-badge-text"><div class="store-badge-sub">Descargar en</div><div class="store-badge-main">App Store</div></div>
+          </a>
+          <a href="#" class="store-badge" aria-label="Disponible en Google Play">
+            <svg width="26" height="26" viewBox="0 0 24 24">
+              <defs>
+                <linearGradient id="gp1b" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00A0FF"/><stop offset="100%" stop-color="#00E2FF"/></linearGradient>
+                <linearGradient id="gp2b" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#FFBD00"/><stop offset="100%" stop-color="#FFA500"/></linearGradient>
+                <linearGradient id="gp3b" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FF3A44"/><stop offset="100%" stop-color="#C31162"/></linearGradient>
+                <linearGradient id="gp4b" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#32A071"/><stop offset="100%" stop-color="#2DA771"/></linearGradient>
+              </defs>
+              <path d="M3.5 2.2v19.6c0 .4.2.7.5.9l10.2-10.7L4 1.3c-.3.2-.5.5-.5.9z" fill="url(#gp1b)"/>
+              <path d="M17.8 8.7 14.2 12l3.6 3.3 4.1-2.3c1.2-.7 1.2-2.3 0-3l-4.1-2.3z" fill="url(#gp2b)"/>
+              <path d="M4 22.7c.3.1.6.1.9-.1l13-7.3-3.6-3.3L4 22.7z" fill="url(#gp3b)"/>
+              <path d="M4 1.3 14.2 12l3.6-3.3-13-7.3c-.3-.2-.6-.2-.9-.1z" fill="url(#gp4b)"/>
+            </svg>
+            <div class="store-badge-text"><div class="store-badge-sub">Disponible en</div><div class="store-badge-main">Google Play</div></div>
+          </a>
+        </div>
+      </div>
     </div>
-</section>
+  </section>
 
-<section>
-    <h2>Como funciona</h2>
-    <p class="section-sub">Un permiso. Treinta segundos. Proteccion total.</p>
+  <!-- ============ FOOTER ============ -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <svg width="24" height="24" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M26 22 L26 16 Q26 11 32 11 Q38 11 38 16 L38 22" stroke="#3B82F6" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+          <rect x="23.5" y="20" width="17" height="10" rx="1.8" stroke="#3B82F6" stroke-width="2.2" fill="#0B1731"/>
+          <path d="M10 26 L54 26 L50 50 L32 60 L14 50 Z" stroke="#3B82F6" stroke-width="2.2" stroke-linejoin="round" fill="none"/>
+          <text x="32" y="48" text-anchor="middle" font-family="Inter Tight, system-ui, sans-serif" font-weight="800" font-size="15" fill="white">24</text>
+        </svg>
+        <div class="footer-brand-name">24defend</div>
+        <span class="pill-label" style="color: var(--slate-500);">· Montevideo, UY</span>
+      </div>
+      <div class="footer-links">
+        <a href="privacy.html">Privacidad</a>
+        <a href="mailto:dev@24defend.com">dev@24defend.com</a>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 24defend · Diseñado en Uruguay para LatAm</div>
+  </footer>
 
-    <ol class="how-list">
-        <li>
-            <h3>Instalas la app y activas la proteccion</h3>
-            <p>Un solo permiso (VPN local). No accede a tus contactos, fotos ni mensajes. Tu trafico no sale del dispositivo.</p>
-        </li>
-        <li>
-            <h3>Recibes un link de phishing por WhatsApp, SMS o email</h3>
-            <p>"Su cuenta BROU fue bloqueada. Verifique sus datos en brou-seguro.com". El atacante espera que lo abras.</p>
-        </li>
-        <li>
-            <h3>24Defend lo bloquea antes de que cargue</h3>
-            <p>La pagina falsa nunca llega a tu pantalla. Recibes una notificacion: "Sitio bloqueado — dominio fraudulento identificado".</p>
-        </li>
-        <li>
-            <h3>El dominio queda bloqueado para todos</h3>
-            <p>Cada dominio detectado protege a todos los usuarios de la red. 24Defend se vuelve mas inteligente con cada ataque.</p>
-        </li>
-    </ol>
-</section>
+  <!-- ============ JS vanilla mínimo ============ -->
+  <script>
+    (function () {
+      // Toggle B2C / B2B
+      var btns = document.querySelectorAll('.seg-btn');
+      var panelPersonas = document.getElementById('panel-personas');
+      var panelEmpresas = document.getElementById('panel-empresas');
 
-<section style="text-align: center;">
-    <h2>Protege tu celular hoy</h2>
-    <p class="section-sub">Gratis. Sin publicidad. Sin vender tus datos. Hecho en Uruguay para America Latina.</p>
-    <a class="cta" href="#">Proximamente en App Store</a>
-</section>
+      function switchTo(aud) {
+        btns.forEach(function (b) {
+          b.classList.toggle('active', b.dataset.audience === aud);
+        });
+        if (aud === 'personas') {
+          panelPersonas.classList.remove('hidden');
+          panelEmpresas.classList.add('hidden');
+        } else {
+          panelEmpresas.classList.remove('hidden');
+          panelPersonas.classList.add('hidden');
+          // pequeña animación de entrada
+          panelEmpresas.style.animation = 'none';
+          void panelEmpresas.offsetWidth;
+          panelEmpresas.style.animation = 'fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) both';
+        }
+      }
 
-<footer>
-    <p>24Defend — Proteccion contra phishing financiero</p>
-    <p style="margin-top: 8px;">
-        <a href="privacy.html">Politica de Privacidad</a>
-        <a href="mailto:contacto@24defend.com">Contacto</a>
-    </p>
-    <p style="margin-top: 16px;">Uruguay, 2026</p>
-</footer>
+      btns.forEach(function (b) {
+        b.addEventListener('click', function () { switchTo(b.dataset.audience); });
+      });
+
+      // Si llega con #empresas en la URL, mostrar panel empresas
+      if (window.location.hash === '#empresas') {
+        switchTo('empresas');
+      }
+      // Clicks en anchors que apuntan a #empresas deberían cambiar panel también
+      document.querySelectorAll('a[href="#empresas"]').forEach(function (a) {
+        a.addEventListener('click', function () { switchTo('empresas'); });
+      });
+      document.querySelectorAll('a[href="#personas"]').forEach(function (a) {
+        a.addEventListener('click', function () { switchTo('personas'); });
+      });
+
+      // Static counter — real number from our database
+      var counterEl = document.getElementById('fraudCounter');
+      counterEl.textContent = (72481).toLocaleString('es-UY');
+    })();
+  </script>
 
 </body>
 </html>
