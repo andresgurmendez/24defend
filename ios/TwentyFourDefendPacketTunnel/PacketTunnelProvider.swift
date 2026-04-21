@@ -15,6 +15,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private var dailyBlacklistTimer: DispatchSourceTimer?
     private let dnsCache = DNSCache(maxSize: 2000, ttl: 3600) // 2K entries, 1 hour TTL
     private let telemetry = TelemetryClient.shared
+    private var lastWhitelistHitTime: Date?
+    private var lastWhitelistDomain: String?
+    private var lastNotificationTime: Date?
 
     // MARK: - Tunnel lifecycle
 
@@ -177,6 +180,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         if store.isWhitelisted(domain) {
             telemetry.incrementBloomWhitelistHits()
             dnsCache.set(domain, verdict: .allow)
+            lastWhitelistHitTime = Date()
+            lastWhitelistDomain = domain
             forwardToUpstream(query: query, original: parsed, proto: proto)
             return
         }
@@ -505,6 +510,18 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     // MARK: - Notifications
 
     private func sendNotification(domain: String, reason: String, severity: EventSeverity, force: Bool = false) {
+        // Suppress if we're in a "page resource" window (user just visited a whitelisted domain)
+        if !force, let lastWL = lastWhitelistHitTime, Date().timeIntervalSince(lastWL) < 3.0 {
+            logger.info("Suppressed notification for \(domain) — likely page resource of \(lastWhitelistDomain ?? "unknown")")
+            return
+        }
+
+        // Rate limit: max 1 notification per 5 seconds
+        if !force, let lastNotif = lastNotificationTime, Date().timeIntervalSince(lastNotif) < 5.0 {
+            logger.info("Suppressed notification for \(domain) — rate limited")
+            return
+        }
+
         // Debounce: only one notification per domain per session (unless forced by escalation)
         if !force {
             guard !recentNotifications.contains(domain) else { return }
@@ -529,6 +546,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             content: content,
             trigger: nil  // deliver immediately
         )
+
+        lastNotificationTime = Date()
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error {

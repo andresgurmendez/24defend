@@ -3,11 +3,40 @@
 import logging
 from datetime import datetime, timezone
 
+from app.bloom import extract_base_domain
 from app.domain_service import lookup_domain, put_domains_bulk
 from app.ingestion.sources import fetch_all_blacklists, fetch_crtsh_subdomains
 from app.models import EntryType
 
 logger = logging.getLogger(__name__)
+
+# Domains that serve millions of users and shouldn't be blocked at the domain
+# level even if one malicious URL was hosted there.  Blocking these at DNS
+# breaks legitimate pages.
+SHARED_INFRASTRUCTURE_DOMAINS = {
+    # Ad networks / ad tech
+    "adnxs.com", "adsrvr.org", "demdex.net", "rubiconproject.com",
+    "pubmatic.com", "criteo.com", "taboola.com", "outbrain.com",
+    "moatads.com", "quantserve.com", "2mdn.net", "serving-sys.com",
+    "googlesyndication.com", "googleadservices.com",
+    # CDNs / shared hosting
+    "akamai.net", "akamaiedge.net", "cloudflare.com", "fastly.net",
+    "amazonaws.com", "cloudfront.net", "azurefd.net", "edgekey.net",
+    # Analytics / tracking
+    "google-analytics.com", "googletagmanager.com", "hotjar.com",
+    "segment.io", "mixpanel.com", "amplitude.com",
+    # Social / major platforms
+    "facebook.com", "fbcdn.net", "twitter.com", "instagram.com",
+    "youtube.com", "tiktok.com", "linkedin.com", "reddit.com",
+    "whatsapp.net", "telegram.org",
+    # Major services
+    "google.com", "googleapis.com", "gstatic.com", "apple.com",
+    "microsoft.com", "amazon.com", "netflix.com", "spotify.com",
+    "yahoo.com", "yimg.com",
+    "github.com", "stackoverflow.com", "wikipedia.org",
+    # Payment / fintech (should never be blacklisted at domain level)
+    "paypal.com", "stripe.com", "shopify.com",
+}
 
 
 async def run_blacklist_ingestion() -> dict:
@@ -24,6 +53,20 @@ async def run_blacklist_ingestion() -> dict:
         all_domains.update(domains)
 
     logger.info(f"Total unique domains across all sources: {len(all_domains)}")
+
+    # Filter out shared-infrastructure domains — blocking these at DNS level
+    # breaks legitimate pages (CDNs, ad networks, major platforms, etc.)
+    before_filter = len(all_domains)
+    all_domains = {
+        d for d in all_domains
+        if extract_base_domain(d) not in SHARED_INFRASTRUCTURE_DOMAINS
+    }
+    filtered_count = before_filter - len(all_domains)
+    if filtered_count:
+        logger.info(
+            f"Filtered {filtered_count} shared-infrastructure domains "
+            f"(CDNs, ad networks, major platforms)"
+        )
 
     # Skip dedup on large batches — DynamoDB batch_writer handles overwrites
     # Checking 28K domains one-by-one takes minutes and isn't worth it
