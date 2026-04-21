@@ -12,7 +12,7 @@ from app.scheduler import (
     stop_scheduler,
 )
 from app.ingestion.runner import run_blacklist_ingestion
-from app.routes.admin import router as admin_router
+from app.routes.admin import router as admin_router, public_router as admin_public_router
 from app.routes.check import router as check_router
 from app.routes.telemetry import router as telemetry_router
 
@@ -60,6 +60,7 @@ app = FastAPI(
 
 app.include_router(check_router)
 app.include_router(admin_router)
+app.include_router(admin_public_router)
 app.include_router(telemetry_router)
 
 

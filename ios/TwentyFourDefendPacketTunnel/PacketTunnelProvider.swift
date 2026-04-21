@@ -12,6 +12,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private var httpListener: NWListener?
     private var httpsRejectListener: NWListener?
     private var refreshTimer: DispatchSourceTimer?
+    private var dailyBlacklistTimer: DispatchSourceTimer?
     private let dnsCache = DNSCache(maxSize: 2000, ttl: 3600) // 2K entries, 1 hour TTL
     private let telemetry = TelemetryClient.shared
 
@@ -48,6 +49,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             // Initial refresh + schedule daily repeating refresh
             Task { await self.refreshData() }
             self.startRefreshTimer()
+            self.startDailyBlacklistTimer()
             self.telemetry.startUploadTimer()
         }
     }
@@ -56,6 +58,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         logger.info("Stopping tunnel (reason: \(String(describing: reason)))")
         refreshTimer?.cancel()
         refreshTimer = nil
+        dailyBlacklistTimer?.cancel()
+        dailyBlacklistTimer = nil
         telemetry.stopAndFlush()
         completionHandler()
     }
@@ -74,6 +78,21 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         refreshTimer = timer
     }
 
+    private func startDailyBlacklistTimer() {
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        timer.schedule(deadline: .now() + 1800, repeating: 1800) // every 30 minutes
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.logger.info("Daily blacklist refresh triggered")
+            Task {
+                await DailyBlacklist.shared.refresh()
+                self.logger.info("Daily blacklist refreshed")
+            }
+        }
+        timer.resume()
+        dailyBlacklistTimer = timer
+    }
+
     private func refreshData() async {
         if BloomFilterStore.shared.needsRefresh {
             logger.info("Refreshing bloom filters...")
@@ -84,6 +103,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         logger.info("Refreshing classifier weights...")
         await PhishingClassifier.refreshWeights()
         logger.info("Classifier weights refreshed")
+
+        // Refresh daily blacklist on startup too
+        if DailyBlacklist.shared.needsRefresh {
+            logger.info("Refreshing daily blacklist...")
+            await DailyBlacklist.shared.refresh()
+            logger.info("Daily blacklist refreshed")
+        }
 
         // Clear verdict cache so new bloom/classifier data takes effect
         dnsCache.clear()
@@ -169,7 +195,20 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
 
-        // 4-6. On-device heuristic check (Levenshtein, brand rules, ML classifier)
+        // 4b. Daily blacklist: domains confirmed bad by backend investigation (polled every 30 min)
+        if DailyBlacklist.shared.contains(domain) {
+            telemetry.recordBlock(domain: domain, layer: "daily_blacklist")
+            dnsCache.set(domain, verdict: .block)
+            logger.warning("BLOCKED (daily blacklist) \(domain)")
+            BlockLog.append(BlockEvent(domain: domain, reason: "Confirmed phishing by 24Defend analysis", severity: .red))
+            sendNotification(domain: domain, reason: "\(domain) is a confirmed phishing site", severity: .red)
+            let dnsResp = DNSPacket.buildBlockResponse(for: query)
+            let ipResp  = IPPacket.buildResponse(original: parsed, dnsResponse: dnsResp)
+            packetFlow.writePackets([ipResp], withProtocols: [proto])
+            return
+        }
+
+        // 5-7. On-device heuristic check (Levenshtein, brand rules, ML classifier)
         let result = DomainChecker.check(domain: domain)
 
         switch result {
@@ -192,42 +231,56 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             packetFlow.writePackets([ipResp], withProtocols: [proto])
 
         case .warned(let reason):
-            // Determine layer for telemetry
-            let layer: String
             if reason.contains("ML model") {
-                layer = "ml_classifier"
+                // ML classifier flag: silent screener mode.
+                // Forward DNS normally (user sees nothing), submit domain to backend
+                // in the background (fire-and-forget). If the backend confirms it's bad,
+                // it goes into the daily blacklist and gets caught on next visit.
                 telemetry.incrementMLWarns()
-            } else if reason.contains("Suspicious:") {
-                layer = "brand_rules"
-                telemetry.incrementBrandRuleWarns()
+                telemetry.incrementAPICalls()
+                logger.info("ML silent submit: \(domain) — \(reason)")
+                dnsCache.set(domain, verdict: .allow)
+                forwardToUpstream(query: query, original: parsed, proto: proto)
+
+                // Fire-and-forget: silently submit to backend for investigation
+                Task.detached(priority: .utility) {
+                    _ = await APIClient.checkDomain(domain)
+                }
             } else {
-                layer = "brand_rules"
-                telemetry.incrementBrandRuleWarns()
-            }
-
-            logger.info("WARNED \(domain) — \(reason)")
-            telemetry.incrementAPICalls()
-            // Hold DNS — check backend first, then decide to block or forward
-            Task {
-                let backendVerdict = await APIClient.checkDomain(domain)
-
-                if backendVerdict?.verdict == "block" {
-                    self.dnsCache.set(domain, verdict: .block)
-                    self.logger.warning("ESCALATED to BLOCK: \(domain)")
-                    self.runtimeBlacklist.insert(domain.lowercased())
-                    self.telemetry.recordBlock(domain: domain, layer: "agent")
-                    BlockLog.append(BlockEvent(domain: domain, reason: backendVerdict?.reason ?? reason, severity: .red))
-                    self.sendNotification(domain: domain, reason: backendVerdict?.reason ?? reason, severity: .red)
-
-                    let dnsResp = DNSPacket.buildBlockResponse(for: query)
-                    let ipResp = IPPacket.buildResponse(original: parsed, dnsResponse: dnsResp)
-                    self.packetFlow.writePackets([ipResp], withProtocols: [proto])
+                // Brand rule engine warnings: these are more reliable, keep existing behavior.
+                // Hold DNS, check backend, then decide.
+                let layer: String
+                if reason.contains("Suspicious:") {
+                    layer = "brand_rules"
+                    telemetry.incrementBrandRuleWarns()
                 } else {
-                    // Don't cache warned domains — re-check next time in case backend updates
-                    self.telemetry.recordWarn(domain: domain, layer: layer)
-                    BlockLog.append(BlockEvent(domain: domain, reason: reason, severity: .yellow))
-                    self.sendNotification(domain: domain, reason: reason, severity: .yellow)
-                    self.forwardToUpstream(query: query, original: parsed, proto: proto)
+                    layer = "brand_rules"
+                    telemetry.incrementBrandRuleWarns()
+                }
+
+                logger.info("WARNED \(domain) — \(reason)")
+                telemetry.incrementAPICalls()
+                Task {
+                    let backendVerdict = await APIClient.checkDomain(domain)
+
+                    if backendVerdict?.verdict == "block" {
+                        self.dnsCache.set(domain, verdict: .block)
+                        self.logger.warning("ESCALATED to BLOCK: \(domain)")
+                        self.runtimeBlacklist.insert(domain.lowercased())
+                        self.telemetry.recordBlock(domain: domain, layer: "agent")
+                        BlockLog.append(BlockEvent(domain: domain, reason: backendVerdict?.reason ?? reason, severity: .red))
+                        self.sendNotification(domain: domain, reason: backendVerdict?.reason ?? reason, severity: .red)
+
+                        let dnsResp = DNSPacket.buildBlockResponse(for: query)
+                        let ipResp = IPPacket.buildResponse(original: parsed, dnsResponse: dnsResp)
+                        self.packetFlow.writePackets([ipResp], withProtocols: [proto])
+                    } else {
+                        // Don't cache warned domains — re-check next time in case backend updates
+                        self.telemetry.recordWarn(domain: domain, layer: layer)
+                        BlockLog.append(BlockEvent(domain: domain, reason: reason, severity: .yellow))
+                        self.sendNotification(domain: domain, reason: reason, severity: .yellow)
+                        self.forwardToUpstream(query: query, original: parsed, proto: proto)
+                    }
                 }
             }
 

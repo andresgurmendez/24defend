@@ -6,7 +6,7 @@ from pathlib import Path
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from app.bloom import generate_whitelist_bloom, generate_blacklist_bloom
+from app.bloom import generate_whitelist_bloom, generate_blacklist_bloom, generate_blacklist_bloom_b
 from app.config import settings
 from app.ingestion.runner import run_blacklist_ingestion
 
@@ -16,6 +16,7 @@ scheduler = AsyncIOScheduler()
 
 WHITELIST_FILENAME = "whitelist.bloom"
 BLACKLIST_FILENAME = "blacklist.bloom"
+BLACKLIST_B_FILENAME = "blacklist_b.bloom"
 
 
 def _bloom_dir() -> Path:
@@ -46,15 +47,22 @@ async def generate_and_store_bloom_filters() -> dict:
     wl_path.write_bytes(wl_data)
     logger.info(f"Whitelist bloom written to {wl_path} ({len(wl_data)} bytes)")
 
-    logger.info("Generating blacklist bloom filter...")
+    logger.info("Generating blacklist bloom filter A...")
     bl_data = await generate_blacklist_bloom()
     bl_path = bloom_dir / BLACKLIST_FILENAME
     bl_path.write_bytes(bl_data)
-    logger.info(f"Blacklist bloom written to {bl_path} ({len(bl_data)} bytes)")
+    logger.info(f"Blacklist bloom A written to {bl_path} ({len(bl_data)} bytes)")
+
+    logger.info("Generating blacklist bloom filter B...")
+    bl_b_data = await generate_blacklist_bloom_b()
+    bl_b_path = bloom_dir / BLACKLIST_B_FILENAME
+    bl_b_path.write_bytes(bl_b_data)
+    logger.info(f"Blacklist bloom B written to {bl_b_path} ({len(bl_b_data)} bytes)")
 
     return {
         "whitelist_bytes": len(wl_data),
         "blacklist_bytes": len(bl_data),
+        "blacklist_b_bytes": len(bl_b_data),
     }
 
 

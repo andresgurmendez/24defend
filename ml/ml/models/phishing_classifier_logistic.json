@@ -1,0 +1,52 @@
+{
+  "type": "logistic_regression",
+  "feature_names": [
+    "domain_length",
+    "name_length",
+    "dot_count",
+    "hyphen_count",
+    "digit_count",
+    "digit_ratio",
+    "unique_char_ratio",
+    "consonant_ratio",
+    "max_consecutive_consonants",
+    "has_brand",
+    "brand_count",
+    "has_phishing_word",
+    "phishing_word_count",
+    "brand_phishing_combo",
+    "has_year_pattern",
+    "brand_year_combo",
+    "tld_risk",
+    "brand_on_risky_tld",
+    "has_homoglyph",
+    "subdomain_depth"
+  ],
+  "coefficients": [
+    0.20861508752870694,
+    -0.1938155556189269,
+    0.0146537562252359,
+    0.4660480978296606,
+    8.546898514819977,
+    1.1629314620332551,
+    2.1370525709582804,
+    0.43376537363975454,
+    0.9887982793374491,
+    3.1880154729251657,
+    3.274415620310746,
+    -1.7333562505529654,
+    0.6776867274181323,
+    1.788975725043239,
+    0.02601612026584743,
+    0.02601612026584743,
+    4.613602645091909,
+    2.0828197278798273,
+    1.2097189094997887,
+    1.211130846864966
+  ],
+  "intercept": -11.293605162412854,
+  "classes": [
+    0,
+    1
+  ]
+}

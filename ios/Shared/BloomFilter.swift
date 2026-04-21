@@ -105,10 +105,12 @@ public final class BloomFilterStore {
     private static let suiteName = "group.com.24defend.app"
     private static let whitelistKey = "bloom_whitelist"
     private static let blacklistKey = "bloom_blacklist"
+    private static let blacklistBKey = "bloom_blacklist_b"
     private static let lastFetchKey = "bloom_last_fetch"
 
     private(set) var whitelist: BloomFilter?
     private(set) var blacklist: BloomFilter?
+    private(set) var blacklistB: BloomFilter?
 
     public static let shared = BloomFilterStore()
 
@@ -123,8 +125,9 @@ public final class BloomFilterStore {
 
         async let wlData = fetchBloom(url: "\(baseURL)/admin/bloom-filter/whitelist", apiKey: apiKey)
         async let blData = fetchBloom(url: "\(baseURL)/admin/bloom-filter/blacklist", apiKey: apiKey)
+        async let blBData = fetchBloom(url: "\(baseURL)/admin/bloom-filter/blacklist-b", apiKey: apiKey)
 
-        let (wl, bl) = await (wlData, blData)
+        let (wl, bl, blB) = await (wlData, blData, blBData)
 
         if let wl {
             whitelist = BloomFilter(data: wl)
@@ -134,8 +137,12 @@ public final class BloomFilterStore {
             blacklist = BloomFilter(data: bl)
             saveToDisk(data: bl, key: Self.blacklistKey)
         }
+        if let blB {
+            blacklistB = BloomFilter(data: blB)
+            saveToDisk(data: blB, key: Self.blacklistBKey)
+        }
 
-        if wl != nil || bl != nil {
+        if wl != nil || bl != nil || blB != nil {
             UserDefaults(suiteName: Self.suiteName)?
                 .set(Date().timeIntervalSince1970, forKey: Self.lastFetchKey)
         }
@@ -175,11 +182,20 @@ public final class BloomFilterStore {
         return wl.mightContain(base)
     }
 
-    /// Check domain against blacklist bloom (base domain only).
+    /// Check domain against dual blacklist bloom filters (base domain only).
+    /// A domain is only considered blacklisted if it matches BOTH filter A and filter B.
+    /// This drastically reduces false positives (combined FP rate ~1 in 670K).
     public func isBlacklisted(_ domain: String) -> Bool {
-        guard let bl = blacklist else { return false }
+        guard let blA = blacklist else { return false }
         let base = Self.extractBaseDomain(domain)
-        return bl.mightContain(base)
+        // Must match filter A first
+        guard blA.mightContain(base) else { return false }
+        // If filter B is available, require a match there too
+        if let blB = blacklistB {
+            return blB.mightContain(base)
+        }
+        // Fallback: if filter B hasn't been downloaded yet, trust filter A alone
+        return true
     }
 
     // MARK: - Disk persistence via App Group
@@ -191,6 +207,9 @@ public final class BloomFilterStore {
         }
         if let blData = defaults.data(forKey: Self.blacklistKey) {
             blacklist = BloomFilter(data: blData)
+        }
+        if let blBData = defaults.data(forKey: Self.blacklistBKey) {
+            blacklistB = BloomFilter(data: blBData)
         }
     }
 

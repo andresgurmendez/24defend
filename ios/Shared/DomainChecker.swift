@@ -99,13 +99,12 @@ public final class DomainChecker {
             return .warned(reason: "Suspicious: \(risk.signals.first ?? "brand impersonation detected")")
         }
 
-        // 7. ML classifier: ONLY run if brand rule engine found a brand keyword
-        //    This prevents false positives on CDN/infrastructure domains
-        if risk.matchedBrand != nil {
-            let prediction = PhishingClassifier.predict(normalized)
-            if prediction.isHighRisk {
-                return .warned(reason: "ML model: phishing probability \(Int(prediction.score * 100))%")
-            }
+        // 7. ML classifier: runs on ALL domains (infrastructure already filtered above)
+        //    Now a silent screener — returns .warned which the tunnel handles silently
+        //    (submits to API in background, no user-facing action)
+        let prediction = PhishingClassifier.predict(normalized)
+        if prediction.isHighRisk {
+            return .warned(reason: "ML model: phishing probability \(Int(prediction.score * 100))%")
         }
 
         // 8. Silent allow

@@ -96,14 +96,27 @@ async def generate_whitelist_bloom() -> bytes:
 
 
 async def generate_blacklist_bloom() -> bytes:
-    """Generate bloom filter of known-bad base domains."""
+    """Generate bloom filter of known-bad base domains (filter A)."""
     entries = await scan_by_type(EntryType.blacklist)
     base_domains = set(extract_base_domain(e.domain) for e in entries)
     return build_bloom_filter(list(base_domains))
 
 
+async def generate_blacklist_bloom_b() -> bytes:
+    """Generate a second independent bloom filter of known-bad base domains (filter B).
+
+    Uses a slightly different fp_rate (0.0015 vs default 0.001) which produces
+    different m and k parameters, making the two filters independent.
+    A domain must match BOTH filters to be considered blacklisted, reducing
+    the combined false positive rate to ~0.0015 * 0.001 = 0.0000015 (1 in 670K).
+    """
+    entries = await scan_by_type(EntryType.blacklist)
+    base_domains = set(extract_base_domain(e.domain) for e in entries)
+    return build_bloom_filter(list(base_domains), fp_rate=0.0015)
+
+
 async def generate_bloom_filters() -> dict:
-    """Generate both bloom filters and return stats."""
+    """Generate all bloom filters (whitelist + dual blacklist) and return stats."""
     whitelist_entries = await scan_by_type(EntryType.whitelist)
     blacklist_entries = await scan_by_type(EntryType.blacklist)
 
@@ -111,7 +124,8 @@ async def generate_bloom_filters() -> dict:
     bl_base = set(extract_base_domain(e.domain) for e in blacklist_entries)
 
     wl_bloom = build_bloom_filter(list(wl_base))
-    bl_bloom = build_bloom_filter(list(bl_base))
+    bl_bloom_a = build_bloom_filter(list(bl_base))
+    bl_bloom_b = build_bloom_filter(list(bl_base), fp_rate=0.0015)
 
     return {
         "whitelist": {
@@ -121,9 +135,15 @@ async def generate_bloom_filters() -> dict:
             "bloom_size_bytes": len(wl_bloom),
         },
         "blacklist": {
-            "data": bl_bloom,
+            "data": bl_bloom_a,
             "total_entries": len(blacklist_entries),
             "unique_base_domains": len(bl_base),
-            "bloom_size_bytes": len(bl_bloom),
+            "bloom_size_bytes": len(bl_bloom_a),
+        },
+        "blacklist_b": {
+            "data": bl_bloom_b,
+            "total_entries": len(blacklist_entries),
+            "unique_base_domains": len(bl_base),
+            "bloom_size_bytes": len(bl_bloom_b),
         },
     }

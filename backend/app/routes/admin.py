@@ -1,5 +1,7 @@
 """Admin endpoints for managing blacklists, whitelists, and bloom filters."""
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
@@ -9,8 +11,9 @@ from app.auth import require_api_key
 from app.bloom import generate_bloom_filters
 from app.domain_service import delete_domain, put_domains_bulk, scan_by_type
 from app.ingestion.runner import run_blacklist_ingestion, run_whitelist_discovery
-from app.models import BulkAddRequest, DomainEntry, EntryType
+from app.models import BulkAddRequest, DomainEntry, EntryType, Verdict
 from app.scheduler import (
+    BLACKLIST_B_FILENAME,
     BLACKLIST_FILENAME,
     WHITELIST_FILENAME,
     generate_and_store_bloom_filters,
@@ -18,6 +21,30 @@ from app.scheduler import (
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_api_key)])
+
+# Public router for device-facing endpoints (no auth needed)
+public_router = APIRouter(tags=["public"])
+
+
+@public_router.get("/daily-blacklist")
+async def get_daily_blacklist() -> dict:
+    """Return domains with verdict 'block' from the cache table checked in the last 48 hours.
+
+    This is a public, lightweight endpoint polled by devices every 30 minutes.
+    It contains domains that the ML classifier flagged as suspicious, which
+    the backend agent then investigated and confirmed as malicious.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+    entries = await scan_by_type(EntryType.cache)
+    blocked_domains = [
+        e.domain
+        for e in entries
+        if e.verdict == Verdict.block and e.checked_at and e.checked_at >= cutoff
+    ]
+    return {
+        "domains": blocked_domains,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @router.post("/domains")
@@ -87,9 +114,9 @@ async def get_whitelist_bloom() -> Response:
 
 @router.get("/bloom-filter/blacklist")
 async def get_blacklist_bloom() -> Response:
-    """Bloom filter of known-bad base domains (served from disk).
+    """Bloom filter A of known-bad base domains (served from disk).
 
-    On-device: if domain's base matches → block immediately, no API call.
+    On-device: domain must match BOTH filter A and filter B to be blocked.
     Contains only base/registrable domains, not subdomains.
     """
     data = read_bloom_file(BLACKLIST_FILENAME)
@@ -99,6 +126,24 @@ async def get_blacklist_bloom() -> Response:
         content=data,
         media_type="application/octet-stream",
         headers={"Content-Disposition": "attachment; filename=blacklist.bloom"},
+    )
+
+
+@router.get("/bloom-filter/blacklist-b")
+async def get_blacklist_bloom_b() -> Response:
+    """Bloom filter B of known-bad base domains (served from disk).
+
+    Second independent filter with different parameters (fp_rate=0.0015).
+    On-device: domain must match BOTH filter A and filter B to be blocked.
+    Combined FP rate: ~0.001 * 0.0015 = 0.0000015 (1 in 670K).
+    """
+    data = read_bloom_file(BLACKLIST_B_FILENAME)
+    if data is None:
+        raise HTTPException(status_code=503, detail="Blacklist bloom filter B not yet generated")
+    return Response(
+        content=data,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": "attachment; filename=blacklist_b.bloom"},
     )
 
 
@@ -145,7 +190,7 @@ async def get_classifier_weights() -> dict:
 
 @router.get("/bloom-filter/stats")
 async def get_bloom_stats() -> dict:
-    """Stats about both bloom filters without downloading them."""
+    """Stats about all bloom filters without downloading them."""
     result = await generate_bloom_filters()
     return {
         "whitelist": {
@@ -157,6 +202,11 @@ async def get_bloom_stats() -> dict:
             "total_entries": result["blacklist"]["total_entries"],
             "unique_base_domains": result["blacklist"]["unique_base_domains"],
             "bloom_size_bytes": result["blacklist"]["bloom_size_bytes"],
+        },
+        "blacklist_b": {
+            "total_entries": result["blacklist_b"]["total_entries"],
+            "unique_base_domains": result["blacklist_b"]["unique_base_domains"],
+            "bloom_size_bytes": result["blacklist_b"]["bloom_size_bytes"],
         },
     }
 
