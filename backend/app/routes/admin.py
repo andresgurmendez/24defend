@@ -47,6 +47,26 @@ async def get_daily_blacklist() -> dict:
     }
 
 
+@public_router.get("/daily-false-positives")
+async def get_daily_false_positives() -> dict:
+    """Return domains the bloom filter flagged but the agent confirmed as safe.
+
+    Polled by devices every 30 minutes alongside the daily blacklist.
+    Prevents repeated API confirmation calls for known false positives.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+    entries = await scan_by_type(EntryType.cache)
+    fp_domains = [
+        e.domain
+        for e in entries
+        if e.verdict == Verdict.allow and e.checked_at and e.checked_at >= cutoff
+    ]
+    return {
+        "domains": fp_domains,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 @router.post("/domains")
 async def add_domains(req: BulkAddRequest) -> dict:
     """Bulk add domains to blacklist or whitelist."""

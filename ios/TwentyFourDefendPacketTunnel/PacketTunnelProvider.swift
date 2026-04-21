@@ -181,17 +181,41 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
 
-        // 4. Bloom filter: blacklist → instant block (no API call needed)
+        // 4. Bloom filter: blacklist hit → confirm with API before blocking
+        //    Eliminates bloom filter false positives (e.g., googletagmanager.com)
         if store.isBlacklisted(domain) {
             telemetry.incrementBloomBlacklistHits()
-            telemetry.recordBlock(domain: domain, layer: "bloom_blacklist")
-            dnsCache.set(domain, verdict: .block)
-            logger.warning("BLOCKED (bloom) \(domain)")
-            BlockLog.append(BlockEvent(domain: domain, reason: "Known phishing domain", severity: .red))
-            sendNotification(domain: domain, reason: "\(domain) is a known phishing site", severity: .red)
-            let dnsResp = DNSPacket.buildBlockResponse(for: query)
-            let ipResp  = IPPacket.buildResponse(original: parsed, dnsResponse: dnsResp)
-            packetFlow.writePackets([ipResp], withProtocols: [proto])
+
+            // Check known FP list first (avoids API call for previously cleared domains)
+            if DailyBlacklist.shared.isFalsePositive(domain) {
+                dnsCache.set(domain, verdict: .allow)
+                forwardToUpstream(query: query, original: parsed, proto: proto)
+                return
+            }
+
+            // Confirm with backend (fast DynamoDB lookup, ~50ms)
+            Task {
+                let apiVerdict = await APIClient.checkDomain(domain)
+
+                if apiVerdict?.verdict == "block" {
+                    // Confirmed — block it
+                    self.dnsCache.set(domain, verdict: .block)
+                    self.runtimeBlacklist.insert(domain.lowercased())
+                    self.telemetry.recordBlock(domain: domain, layer: "bloom_blacklist")
+                    self.logger.warning("BLOCKED (bloom+confirmed) \(domain)")
+                    BlockLog.append(BlockEvent(domain: domain, reason: apiVerdict?.reason ?? "Known phishing domain", severity: .red))
+                    self.sendNotification(domain: domain, reason: "\(domain) is a known phishing site", severity: .red)
+
+                    let dnsResp = DNSPacket.buildBlockResponse(for: query)
+                    let ipResp = IPPacket.buildResponse(original: parsed, dnsResponse: dnsResp)
+                    self.packetFlow.writePackets([ipResp], withProtocols: [proto])
+                } else {
+                    // False positive — allow and record
+                    self.dnsCache.set(domain, verdict: .allow)
+                    self.logger.info("BLOOM FP: \(domain) — API says allow")
+                    self.forwardToUpstream(query: query, original: parsed, proto: proto)
+                }
+            }
             return
         }
 
