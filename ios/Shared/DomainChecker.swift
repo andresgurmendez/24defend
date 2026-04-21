@@ -137,10 +137,7 @@ public final class DomainChecker {
         // Ads / analytics / tracking (legitimate infra, not phishing)
         "doubleclick.net", "crashlytics.com", "firebaseio.com",
         "appsflyer.com", "branch.io", "adjust.com",
-        "app-measurement.com", "adnxs.com", "adsrvr.org", "demdex.net",
-        "rubiconproject.com", "pubmatic.com", "criteo.com", "taboola.com",
-        "outbrain.com", "moatads.com", "quantserve.com",
-        "sentry.io", "bugsnag.com",
+        "app-measurement.com", "sentry.io", "bugsnag.com",
         "newrelic.com", "datadoghq.com", "segment.io", "mixpanel.com",
         "amplitude.com", "hotjar.com", "clarity.ms",
         // Social / messaging
