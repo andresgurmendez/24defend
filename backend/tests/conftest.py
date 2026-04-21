@@ -16,7 +16,7 @@ from fastapi import FastAPI
 
 from app.models import DomainEntry, EntryType, Verdict
 from app.routes.check import router as check_router
-from app.routes.admin import router as admin_router
+from app.routes.admin import router as admin_router, public_router as admin_public_router
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +139,7 @@ def _build_test_app() -> FastAPI:
     test_app = FastAPI()
     test_app.include_router(check_router)
     test_app.include_router(admin_router)
+    test_app.include_router(admin_public_router)
 
     @test_app.get("/health")
     async def health():

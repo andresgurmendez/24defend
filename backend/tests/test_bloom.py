@@ -184,3 +184,135 @@ class TestAsyncBloomGeneration:
         assert result["whitelist"]["total_entries"] == 1
         assert result["blacklist"]["total_entries"] == 1
         assert result["whitelist"]["bloom_size_bytes"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Dual bloom filter (filter B)
+# ---------------------------------------------------------------------------
+
+class TestDualBloomFilter:
+    """Tests for the second independent blacklist bloom filter (filter B)."""
+
+    async def test_generate_blacklist_bloom_b_produces_valid_filter(self, mock_get_table, fake_table):
+        """generate_blacklist_bloom_b returns bytes that can be checked."""
+        await fake_table.put_item(Item={"domain": "evil.com", "entry_type": "blacklist"})
+        await fake_table.put_item(Item={"domain": "phish.xyz", "entry_type": "blacklist"})
+
+        from app.bloom import generate_blacklist_bloom_b
+        data = await generate_blacklist_bloom_b()
+
+        # Must have valid header (8 bytes) + bitarray data
+        assert len(data) > 8
+        m = int.from_bytes(data[:4], "big")
+        k = int.from_bytes(data[4:8], "big")
+        assert m > 0
+        assert k > 0
+
+    async def test_filter_b_has_different_params_than_filter_a(self, mock_get_table, fake_table):
+        """Filter B (fp_rate=0.0015) should have different m or k than filter A (fp_rate=0.001)."""
+        domains = [f"domain-{i}.com" for i in range(100)]
+        for d in domains:
+            await fake_table.put_item(Item={"domain": d, "entry_type": "blacklist"})
+
+        from app.bloom import generate_blacklist_bloom, generate_blacklist_bloom_b
+        data_a = await generate_blacklist_bloom()
+        data_b = await generate_blacklist_bloom_b()
+
+        m_a = int.from_bytes(data_a[:4], "big")
+        k_a = int.from_bytes(data_a[4:8], "big")
+        m_b = int.from_bytes(data_b[:4], "big")
+        k_b = int.from_bytes(data_b[4:8], "big")
+
+        # Different fp_rate should produce different parameters
+        assert (m_a, k_a) != (m_b, k_b), (
+            f"Filter A (m={m_a}, k={k_a}) and Filter B (m={m_b}, k={k_b}) "
+            "should have different parameters due to different fp_rate"
+        )
+
+    async def test_both_filters_contain_same_domains(self, mock_get_table, fake_table):
+        """Both filter A and filter B must have 100% true positives for all blacklisted domains."""
+        blacklisted = ["evil.com", "phish.xyz", "badsite.org", "malware.net", "scam.io"]
+        for d in blacklisted:
+            await fake_table.put_item(Item={"domain": d, "entry_type": "blacklist"})
+
+        from app.bloom import generate_blacklist_bloom, generate_blacklist_bloom_b
+        data_a = await generate_blacklist_bloom()
+        data_b = await generate_blacklist_bloom_b()
+
+        for d in blacklisted:
+            assert check_bloom_filter(data_a, d) is True, f"{d} not found in filter A"
+            assert check_bloom_filter(data_b, d) is True, f"{d} not found in filter B"
+
+    def test_dual_filter_reduces_false_positives(self):
+        """A domain that's a FP in filter A is unlikely to also be a FP in filter B.
+
+        We build two filters with the same domains but different fp_rates,
+        then check a large set of non-member domains. The combined FP count
+        (positive in BOTH filters) should be much lower than either alone.
+        """
+        blacklisted = [f"blacklisted-{i}.com" for i in range(200)]
+        data_a = build_bloom_filter(blacklisted, fp_rate=0.001)
+        data_b = build_bloom_filter(blacklisted, fp_rate=0.0015)
+
+        # Check 2000 non-member domains
+        test_domains = [f"legitimate-site-{i}.com" for i in range(2000)]
+        fp_a = 0
+        fp_b = 0
+        fp_both = 0
+        for d in test_domains:
+            in_a = check_bloom_filter(data_a, d)
+            in_b = check_bloom_filter(data_b, d)
+            if in_a:
+                fp_a += 1
+            if in_b:
+                fp_b += 1
+            if in_a and in_b:
+                fp_both += 1
+
+        # Combined FP should be strictly less than individual FP counts
+        # (unless both are already 0, which is also fine)
+        assert fp_both <= fp_a, "Combined FP should not exceed filter A FP"
+        assert fp_both <= fp_b, "Combined FP should not exceed filter B FP"
+        # With 2000 tests, we expect ~2 FP in A and ~3 in B individually,
+        # but the intersection should be 0 or at most 1
+        assert fp_both <= 1, f"Expected <=1 combined FP, got {fp_both} (A={fp_a}, B={fp_b})"
+
+    async def test_generate_bloom_filters_returns_all_three(self, mock_get_table, fake_table):
+        """generate_bloom_filters() returns whitelist, blacklist, and blacklist_b with correct stats."""
+        await fake_table.put_item(Item={"domain": "safe.com", "entry_type": "whitelist"})
+        await fake_table.put_item(Item={"domain": "safe2.com", "entry_type": "whitelist"})
+        await fake_table.put_item(Item={"domain": "bad.com", "entry_type": "blacklist"})
+        await fake_table.put_item(Item={"domain": "evil.net", "entry_type": "blacklist"})
+        await fake_table.put_item(Item={"domain": "phish.org", "entry_type": "blacklist"})
+
+        from app.bloom import generate_bloom_filters
+        result = await generate_bloom_filters()
+
+        # All three filters present
+        assert "whitelist" in result
+        assert "blacklist" in result
+        assert "blacklist_b" in result
+
+        # Whitelist stats
+        assert result["whitelist"]["total_entries"] == 2
+        assert result["whitelist"]["unique_base_domains"] == 2
+        assert result["whitelist"]["bloom_size_bytes"] > 0
+        assert "data" in result["whitelist"]
+
+        # Blacklist A stats
+        assert result["blacklist"]["total_entries"] == 3
+        assert result["blacklist"]["unique_base_domains"] == 3
+        assert result["blacklist"]["bloom_size_bytes"] > 0
+
+        # Blacklist B stats
+        assert result["blacklist_b"]["total_entries"] == 3
+        assert result["blacklist_b"]["unique_base_domains"] == 3
+        assert result["blacklist_b"]["bloom_size_bytes"] > 0
+
+        # Blacklist B should have different size than A (different fp_rate)
+        assert result["blacklist_b"]["bloom_size_bytes"] != result["blacklist"]["bloom_size_bytes"]
+
+        # Both blacklist filters should contain the same domains
+        for d in ["bad.com", "evil.net", "phish.org"]:
+            assert check_bloom_filter(result["blacklist"]["data"], d) is True
+            assert check_bloom_filter(result["blacklist_b"]["data"], d) is True

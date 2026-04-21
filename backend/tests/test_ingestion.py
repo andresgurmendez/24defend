@@ -293,8 +293,8 @@ class TestRunBlacklistIngestion:
             assert "new2.com" in fake_table._store
             assert "new3.com" in fake_table._store
 
-    async def test_skips_existing_domains(self, mock_get_table, fake_table):
-        # Pre-seed an existing domain
+    async def test_upserts_existing_domains(self, mock_get_table, fake_table):
+        """Ingestion upserts all domains without per-domain dedup (performance fix)."""
         fake_table._store["existing.com"] = {
             "domain": "existing.com", "entry_type": "blacklist",
         }
@@ -307,8 +307,8 @@ class TestRunBlacklistIngestion:
 
             stats = await run_blacklist_ingestion()
             assert stats["total_unique"] == 2
-            assert stats["new_added"] == 1
-            assert stats["already_known"] == 1
+            # All domains upserted (no per-domain dedup for performance)
+            assert stats["new_added"] == 2
 
     async def test_deduplication_across_sources(self, mock_get_table, fake_table):
         with patch("app.ingestion.runner.fetch_all_blacklists", new_callable=AsyncMock) as mock_fetch:

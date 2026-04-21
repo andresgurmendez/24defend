@@ -5,11 +5,14 @@ Covers:
 - DELETE /admin/domains/{domain}
 - GET /admin/domains (list by type)
 - GET /admin/bloom-filter/whitelist and /blacklist
+- GET /admin/bloom-filter/blacklist-b
 - POST /admin/bloom-filter/regenerate
 - GET /admin/bloom-filter/stats
+- GET /daily-blacklist (public)
 - Auth (missing/invalid API key)
 """
 
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, AsyncMock, MagicMock
 from pathlib import Path
 
@@ -235,3 +238,100 @@ class TestIngestionEndpoints:
             data = resp.json()
             assert data["status"] == "ok"
             assert data["ingestion"]["new_added"] == 5
+
+
+# ---------------------------------------------------------------------------
+# GET /daily-blacklist (public endpoint)
+# ---------------------------------------------------------------------------
+
+class TestDailyBlacklist:
+    async def test_empty_when_no_cache_entries(self, client, mock_get_table):
+        """Returns empty domain list when no cache entries exist."""
+        resp = await client.get("/daily-blacklist")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["domains"] == []
+        assert "updated_at" in data
+
+    async def test_returns_blocked_domains_within_48h(self, client, mock_get_table, fake_table):
+        """Returns domains with verdict=block and checked_at within the last 48 hours."""
+        recent = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        _seed(fake_table, "blocked-recent.com", "cache", verdict="block", checked_at=recent)
+
+        resp = await client.get("/daily-blacklist")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "blocked-recent.com" in data["domains"]
+
+    async def test_excludes_domains_older_than_48h(self, client, mock_get_table, fake_table):
+        """Does NOT return domains with checked_at older than 48 hours."""
+        old = (datetime.now(timezone.utc) - timedelta(hours=49)).isoformat()
+        _seed(fake_table, "blocked-old.com", "cache", verdict="block", checked_at=old)
+
+        resp = await client.get("/daily-blacklist")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "blocked-old.com" not in data["domains"]
+
+    async def test_excludes_allow_and_warn_verdicts(self, client, mock_get_table, fake_table):
+        """Does NOT return domains with verdict=allow or verdict=warn."""
+        recent = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        _seed(fake_table, "allowed.com", "cache", verdict="allow", checked_at=recent)
+        _seed(fake_table, "warned.com", "cache", verdict="warn", checked_at=recent)
+        _seed(fake_table, "blocked.com", "cache", verdict="block", checked_at=recent)
+
+        resp = await client.get("/daily-blacklist")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "allowed.com" not in data["domains"]
+        assert "warned.com" not in data["domains"]
+        assert "blocked.com" in data["domains"]
+
+    async def test_requires_no_authentication(self, client, mock_get_table, fake_table):
+        """The /daily-blacklist endpoint is public (no API key required)."""
+        recent = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        _seed(fake_table, "blocked.com", "cache", verdict="block", checked_at=recent)
+
+        # No headers at all — should still work
+        resp = await client.get("/daily-blacklist")
+        assert resp.status_code == 200
+        assert "blocked.com" in resp.json()["domains"]
+
+
+# ---------------------------------------------------------------------------
+# Bloom filter B endpoint + stats with blacklist_b
+# ---------------------------------------------------------------------------
+
+class TestBloomFilterBEndpoint:
+    async def test_blacklist_b_returns_binary_when_file_exists(self, client, mock_get_table, admin_headers):
+        """GET /admin/bloom-filter/blacklist-b returns binary data when the file is present."""
+        fake_bloom = b"\x00\x00\x00\x40\x00\x00\x00\x03" + b"\xff" * 8
+        with patch("app.routes.admin.read_bloom_file", return_value=fake_bloom):
+            resp = await client.get("/admin/bloom-filter/blacklist-b", headers=admin_headers)
+            assert resp.status_code == 200
+            assert resp.headers["content-type"] == "application/octet-stream"
+            assert resp.content == fake_bloom
+
+    async def test_blacklist_b_returns_503_when_not_generated(self, client, mock_get_table, admin_headers):
+        """GET /admin/bloom-filter/blacklist-b returns 503 when the filter file doesn't exist."""
+        with patch("app.routes.admin.read_bloom_file", return_value=None):
+            resp = await client.get("/admin/bloom-filter/blacklist-b", headers=admin_headers)
+            assert resp.status_code == 503
+
+    async def test_bloom_stats_includes_blacklist_b(self, client, mock_get_table, fake_table, admin_headers):
+        """GET /admin/bloom-filter/stats includes blacklist_b section with correct stats."""
+        _seed(fake_table, "safe.com", "whitelist")
+        _seed(fake_table, "bad.com", "blacklist")
+        _seed(fake_table, "evil.net", "blacklist")
+
+        resp = await client.get("/admin/bloom-filter/stats", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+
+        assert "blacklist_b" in data
+        assert data["blacklist_b"]["total_entries"] == 2
+        assert data["blacklist_b"]["unique_base_domains"] == 2
+        assert data["blacklist_b"]["bloom_size_bytes"] > 0
+
+        # blacklist_b should have different size than blacklist (different fp_rate)
+        assert data["blacklist_b"]["bloom_size_bytes"] != data["blacklist"]["bloom_size_bytes"]
