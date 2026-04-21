@@ -2,7 +2,7 @@
 
 Anti-phishing link protection for mobile devices, targeting Latin America.
 
-24Defend intercepts DNS queries on iOS devices using a NetworkExtension packet tunnel, checks domains against a 10+ layer on-device pipeline (dual bloom filters with API confirmation, daily blacklist, daily false-positive list, BK-tree fuzzy matching, brand rule engine, silent ML screener, hardcoded lists), and escalates uncertain domains to a backend investigation agent powered by AWS Bedrock Claude Sonnet. The system ingests public threat feeds daily, generates compact bloom filters that the iOS app downloads for offline protection, and maintains an ML pipeline for training lightweight phishing classifiers from synthetic and real-world data.
+24Defend intercepts DNS queries on iOS devices using a NetworkExtension packet tunnel, checks domains against a 9-layer on-device pipeline (DNS verdict cache, runtime blacklist, infrastructure allowlist, bloom whitelist, dual bloom blacklist with local FP list + API confirmation, daily blacklist, BK-tree fuzzy matching, brand rule engine, silent ML screener), and escalates uncertain domains to a backend investigation agent powered by AWS Bedrock Claude Sonnet. The system ingests public threat feeds daily (filtering 43 shared-infrastructure domains at ingestion), generates compact bloom filters that the iOS app downloads for offline protection, and maintains an ML pipeline for training lightweight phishing classifiers from synthetic and real-world data.
 
 ---
 
@@ -124,49 +124,50 @@ When a domain is blocked, the DNS response resolves to `127.0.0.1`. A local HTTP
 Each DNS query runs through these checks in order. The first match wins.
 
 ```
-Layer 1: Infrastructure allowlist (DomainChecker.isInfrastructureDomain)
-   |  Known CDN/platform domains (Apple, Google, Cloudflare, Akamai, etc.)
-   |  skip all detection. Hardcoded in DomainChecker.
-   |  If match: ALLOW silently, skip all further checks.
+Layer 0: DNS verdict cache (LRU, 2K entries, 1hr TTL)
+   |  If cached: return cached allow/block immediately (<0.01ms).
    v
-Layer 2: Runtime blacklist (in-memory Set<String>)
+Layer 1: Runtime blacklist (in-memory Set<String>)
    |  Domains confirmed bad by the backend during this session.
    |  Source: backend /check verdict = "block" (added after API escalation).
    |  Result: BLOCK (red notification)
    v
-Layer 3: Daily blacklist (fetched from /daily-blacklist every 30 min)
-   |  Domains the backend agent confirmed as malicious in the last 48 hours.
-   |  Polled alongside bloom filters. Stored in App Group UserDefaults.
-   |  If match: BLOCK immediately (red notification).
+Layer 2: Infrastructure allowlist (DomainChecker.isInfrastructureDomain)
+   |  Known CDN/platform domains (Apple, Google, Cloudflare, Akamai, etc.)
+   |  skip all detection. Hardcoded in DomainChecker.
+   |  If match: ALLOW silently, skip all further checks.
    v
-Layer 4: Daily false-positive list (fetched from /daily-false-positives every 30 min)
-   |  Domains the bloom filter flagged but the backend agent confirmed safe.
-   |  Prevents repeated API confirmation calls for known false positives.
-   |  If match: ALLOW silently, skip further checks.
-   v
-Layer 5: Bloom filter whitelist
+Layer 3: Bloom filter whitelist
    |  Downloaded from backend, cached in App Group UserDefaults.
    |  Checks base domain (e.g., homebanking.brou.com.uy -> brou.com.uy).
    |  If match: ALLOW silently, skip all further checks.
    v
-Layer 6: Dual bloom filter blacklist (A + B)
+Layer 4: Dual bloom filter blacklist (A + B) with API confirmation
    |  Two independent bloom filters with different hash parameters.
    |  Both downloaded from backend, cached in App Group UserDefaults.
    |  Checks base domain against known-bad domains.
    |  Combined false positive rate: ~1 in 670,000.
-   |  If BOTH filters match: confirm with API (POST /check) before blocking.
-   |  Never blocks on bloom filter alone. API confirmation required.
-   |  If API confirms block: BLOCK (red notification), add to runtime blacklist.
-   |  If API returns allow: add to daily false-positive list.
+   |  If BOTH filters match:
+   |    a. Check local false-positive list first (instant).
+   |    b. If in FP list: ALLOW, skip further checks.
+   |    c. If not in FP list: confirm with backend API (DynamoDB lookup, ~50ms).
+   |    d. If API says block: BLOCK (red notification), add to runtime blacklist.
+   |    e. If API says allow: forward DNS, record as false positive.
+   |  Never blocks on bloom filter alone. Eliminates all bloom filter false positives.
    v
-Layer 7: BK-tree Levenshtein fuzzy match
+Layer 4b: Daily blacklist (fetched from /daily-blacklist every 30 min)
+   |  Domains the backend agent confirmed as malicious in the last 48 hours.
+   |  Polled alongside bloom filters. Stored in App Group UserDefaults.
+   |  If match: BLOCK immediately (red notification).
+   v
+Layer 5: BK-tree Levenshtein fuzzy match
    |  a) Exact match against hardcoded blacklist Set -> BLOCK
    |  b) Subdomain of hardcoded blacklist entry -> BLOCK
    |  c) Exact/subdomain match against hardcoded whitelist -> ALLOW
    |  d) BK-tree Levenshtein search (max distance 3, similarity >= 70%)
    |     against whitelist base domains -> WARN
    v
-Layer 8: Brand Rule Engine (BrandRuleEngine.swift)
+Layer 6: Brand Rule Engine (BrandRuleEngine.swift)
    |  On-device brand impersonation detection. Runs in <1ms, no network.
    |  Checks for:
    |    - Uruguay brand keywords (25 brands: banks, fintech, telecom, govt)
@@ -178,7 +179,7 @@ Layer 8: Brand Rule Engine (BrandRuleEngine.swift)
    |  Returns RiskAssessment with score (0.0-1.0) and signal list.
    |  If score >= 0.7 (high risk) -> WARN
    v
-Layer 9: ML classifier (silent screener)
+Layer 7: ML classifier (silent screener)
    |  Logistic regression, 1 KB model, 20 features extracted from domain string.
    |  AUC 0.9974 on synthetic validation set.
    |  All features computable from the domain string alone, no network calls.
@@ -187,11 +188,11 @@ Layer 9: ML classifier (silent screener)
    |  If score >= 0.5 -> submit domain to API in background for investigation.
    |  No user warning, no DNS hold. Only brand rule engine warnings are user-facing.
    |
-   |  If WARN from Layer 7 or 8: hold the DNS query and call backend API (Layer 10)
+   |  If WARN from Layer 5 or 6: hold the DNS query and call backend API (Layer 8)
    v
-Layer 10: Backend API call (POST /check)
-   |  Only reached for WARN verdicts from Layers 7/8.
-   |  Also called for bloom filter confirmations (Layer 6) and ML submissions (Layer 9).
+Layer 8: Backend API call (POST /check)
+   |  Only reached for WARN verdicts from Layers 5/6.
+   |  Also called for bloom filter confirmations (Layer 4) and ML submissions (Layer 7).
    |  Async: DNS query is held while waiting for response (for WARN verdicts).
    |  If backend returns "block": escalate to BLOCK, add to runtime blacklist.
    |  If backend returns "allow"/"warn" or is unreachable: ALLOW with yellow warning.
@@ -206,7 +207,7 @@ Manages downloading, caching, and accessing bloom filters.
 - **Storage**: App Group UserDefaults (`group.com.24defend.app`)
 - **Refresh**: on tunnel start if >24 hours since last fetch
 - **Download**: fetches from `GET /admin/bloom-filter/whitelist`, `/blacklist`, and `/blacklist-b`
-- **Daily lists**: fetches `/daily-blacklist` and `/daily-false-positives` every 30 minutes
+- **Daily lists**: fetches `/daily-blacklist` and `/daily-false-positives` every 30 minutes. The false-positive list is checked locally before making API confirmation calls for bloom filter hits.
 - **Bypass**: uses a URLSession with empty `connectionProxyDictionary` to bypass the tunnel itself
 - **Base domain extraction**: mirrors backend logic, including two-part TLD handling for LatAm ccTLDs (`.com.uy`, `.com.ar`, `.com.br`, `.com.mx`, `.com.co`, `.com.cl`, etc.)
 
@@ -272,6 +273,14 @@ Two severity levels:
 
 Notifications are debounced: one notification per domain per tunnel session. Tapping a notification opens a `BlockDetailView` sheet with details in Spanish.
 
+**Smart notification suppression**: Notifications are heavily filtered to avoid noise. The principle is "silence is the default state" -- DNS blocking and telemetry recording are unaffected, only the user-facing notification is suppressed.
+
+- **Brand keyword filter**: only notify for domains containing a brand keyword (brou, itau, santander, etc.). Generic blacklist blocks (ad trackers, CDN malware, background app requests) are silenced.
+- **Page resource window**: suppress notifications within 3 seconds of a whitelist hit. This catches invisible page resources (ad trackers, analytics) loaded when visiting a legitimate site.
+- **Rate limit**: max 1 notification per 5 seconds.
+
+**Key insight**: visiting yahoo.com triggered 10+ notifications for invisible ad tracker domains. These were legitimate blacklist entries (threat feeds flag ad networks for malvertising), but DNS-level blocking cannot distinguish good vs bad content on shared infrastructure. The fix is two-fold: filter shared infrastructure at ingestion and suppress notifications for non-brand domains.
+
 ### Block Log
 
 Persisted via App Group UserDefaults as JSON-encoded `[BlockEvent]`. Maximum 200 entries, newest first. Shared between the packet tunnel extension (writes) and the main app (reads/displays).
@@ -301,7 +310,7 @@ Persisted via App Group UserDefaults as JSON-encoded `[BlockEvent]`. Maximum 200
 | POST | `/check` | Check a domain. Returns verdict (block/warn/allow), confidence, reason, source. |
 | GET | `/health` | Health check |
 | GET | `/daily-blacklist` | Domains confirmed malicious in last 48h. Polled by devices every 30 min. |
-| GET | `/daily-false-positives` | Bloom filter false positives (verdict=allow) in last 48h. Polled every 30 min. |
+| GET | `/daily-false-positives` | Bloom filter false positives (verdict=allow) checked in last 48h. Public, no auth. Devices poll every 30 min alongside daily blacklist. Prevents repeated API calls for known FPs. |
 
 #### Admin (requires `X-Api-Key` header)
 
@@ -445,9 +454,10 @@ Four public threat intelligence feeds ingested concurrently:
 **Ingestion flow**:
 1. Fetch all sources concurrently (tolerates individual failures)
 2. Extract domains from URLs (strip protocol, path, port, query, fragment)
-3. Deduplicate across all sources
-4. Skip domains already in DynamoDB (blacklist, whitelist, or cache)
-5. Batch insert new domains as `entry_type=blacklist`
+3. Filter out shared infrastructure domains (43 domains: ad networks, CDNs, analytics, social platforms, major services, payment providers). These domains host both legitimate and malicious content -- blocking at DNS level breaks pages. Defined in `SHARED_INFRASTRUCTURE_DOMAINS` set in `backend/app/ingestion/runner.py`.
+4. Deduplicate across all sources
+5. Skip domains already in DynamoDB (blacklist, whitelist, or cache)
+6. Batch insert new domains as `entry_type=blacklist`
 
 **Whitelist auto-discovery**: Certificate Transparency logs via `crt.sh`. Given a root domain (e.g., `brou.com.uy`), discovers all subdomains from CT logs and adds them as whitelist entries with a partner_id. Wildcards (`*.domain`) are excluded.
 
@@ -589,18 +599,17 @@ Step-by-step walkthrough of what happens when a user taps a phishing link (e.g.,
    |
 4. PacketTunnelProvider.handlePacket() parses the IPv4/UDP/DNS packet
    |
-5. Layer 1: Infrastructure allowlist -> NOT an infrastructure domain
+5. Layer 0: DNS verdict cache -> NOT CACHED (first time)
    |
-6. Layer 2: Check runtime blacklist -> NOT FOUND (first time seeing this domain)
+6. Layer 1: Check runtime blacklist -> NOT FOUND (first time seeing this domain)
    |
-7. Layer 3: Check daily blacklist -> NOT FOUND
+7. Layer 2: Infrastructure allowlist -> NOT an infrastructure domain
    |
-8. Layer 4: Check daily false-positive list -> NOT FOUND
+8. Layer 3: Check bloom whitelist for base domain "brou-seguro.com" -> NOT FOUND
    |
-9. Layer 5: Check bloom whitelist for base domain "brou-seguro.com" -> NOT FOUND
-   |
-10. Layer 6: Check dual bloom blacklist for base domain "brou-seguro.com"
+9. Layer 4: Check dual bloom blacklist for base domain "brou-seguro.com"
    |  -> BOTH filters match (brou-seguro.com was ingested from PhishTank/OpenPhish)
+   |  -> Check local FP list -> NOT FOUND
    |  -> Confirm with API: POST /check -> verdict: "block"
    |
 11. BLOCKED:
@@ -616,15 +625,15 @@ Step-by-step walkthrough of what happens when a user taps a phishing link (e.g.,
 If the domain is NOT in the bloom blacklist but is similar to a whitelisted domain (e.g., `br0u.com.uy` with a zero instead of 'o'):
 
 ```
-1-9. Same as above, bloom filters don't match
+1-8. Same as above, bloom filters don't match
    |
-10. Layer 7: DomainChecker.check()
+9. Layer 5: DomainChecker.check()
    a. Not in hardcoded blacklist
    b. Not in hardcoded whitelist
    c. BK-tree search: "br0u.com.uy" vs "brou.com.uy" -> distance 1, similarity 90%
-   d. Result: WARN (Layers 8-9 skipped, already WARN)
+   d. Result: WARN (Layers 6-7 skipped, already WARN)
    |
-11. Layer 10: Hold DNS, call POST /check with domain "br0u.com.uy"
+10. Layer 8: Hold DNS, call POST /check with domain "br0u.com.uy"
    |
 12. Backend: not in DynamoDB -> run LangGraph agent
    a. Agent calls domain_heuristics: "Contains brand name: brou"
@@ -774,7 +783,7 @@ The system is designed to minimize data leaving the device:
 
 ### Backend Tests
 
-155+ unit tests across 5 test files, all using pytest with async support.
+160+ unit tests across 5 test files, all using pytest with async support.
 
 | File | Tests | Coverage |
 |------|-------|----------|

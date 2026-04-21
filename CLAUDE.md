@@ -26,7 +26,7 @@ After adding/removing Swift files, run `cd ios && xcodegen generate`, then resto
 Known CDN/platform domains skip all detection (DomainChecker.isInfrastructureDomain). Add domains here rather than modifying bloom filter logic.
 
 ### Bloom filter false positives
-Never block on bloom filter alone. Always confirm with API. FPs are distributed via /daily-false-positives endpoint.
+Never block on bloom filter alone. On a bloom hit: check local FP list first (instant), then confirm with backend API (DynamoDB lookup, ~50ms). FPs are distributed via GET /daily-false-positives endpoint (public, no auth, polled every 30 min).
 
 ### ML classifier is silent
 Never show user-facing warnings from ML model. Submit suspicious domains to API in background. Only brand rule engine warnings are user-facing.
@@ -37,12 +37,18 @@ Force rebuild by changing Dockerfile comment. CDK caches Docker image by content
 ### Signed modulo
 Swift bloom filter uses Python-style signed int32 modulo (pythonMod function). Never use unsigned modulo for bloom filter lookups.
 
+### Shared infrastructure filtering
+43 shared-infrastructure domains (ad networks, CDNs, analytics, social platforms) are filtered at ingestion in `backend/app/ingestion/runner.py` (`SHARED_INFRASTRUCTURE_DOMAINS` set). These host both legitimate and malicious content -- blocking at DNS level breaks pages. Add domains here when threat feeds include shared-infrastructure domains.
+
+### Smart notification suppression
+Only notify for domains containing a brand keyword. Generic blacklist blocks are silenced. Page resource window: suppress within 3s of a whitelist hit. Rate limit: max 1 per 5s. Principle: "silence is the default state." DNS blocking and telemetry are unaffected.
+
 ### Privacy
 Never record allowed/normal domains. Only blocked/warned domains in telemetry. Anonymous device UUID, not Apple ID.
 
 ## Testing
 
-155+ backend tests. Run with:
+160+ backend tests. Run with:
 ```bash
 cd backend && .venv/bin/python -m pytest tests/ -v
 ```

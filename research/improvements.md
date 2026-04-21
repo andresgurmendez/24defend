@@ -58,20 +58,18 @@ detail screen.
 - Threshold: 3+ reports for same domain → auto-allowlist
 - Daily review of reports for patterns (are attackers gaming the report system?)
 
-### 2b. Multi-layer confirmation before blocking
+### 2b. Multi-layer confirmation before blocking -- IMPLEMENTED (April 7, 2026)
 
-Instead of blocking on a single bloom filter hit, require confirmation from a second source:
+Bloom filter hit no longer blocks instantly. The flow is now:
 
 ```
-Bloom filter hit → check against backend /check endpoint → if blacklist confirmed → block
-                                                         → if not in backend → allow (FP)
+Bloom filter hit → check local FP list (instant) → if known FP → allow
+                                                  → if not FP → confirm with backend API (~50ms DynamoDB lookup)
+                                                    → if API says block → block + add to runtime blacklist
+                                                    → if API says allow → forward DNS + record as false positive
 ```
 
-This eliminates bloom filter FPs entirely at the cost of one API call per bloom hit.
-The API call is fast (~50ms) because it's a DynamoDB lookup, not an agent investigation.
-
-**Trade-off**: adds 50ms latency to all bloom-filter-blocked domains, but eliminates FPs completely.
-Could be opt-in: "strict mode" blocks on bloom filter alone, "safe mode" confirms with backend.
+This eliminates all bloom filter false positives. The daily FP list (GET /daily-false-positives, polled every 30 min) prevents repeated API calls for domains already confirmed safe.
 
 ### 2c. Infrastructure allowlist improvements
 
@@ -240,12 +238,14 @@ Download the free app to protect yourself: https://24defend.com/download"
 The doc identifies this as the #1 growth mechanism. Each block event is a potential
 viral share to 30+ people in a WhatsApp group.
 
-### 6c. Notification grouping
+### 6c. Notification grouping -- PARTIALLY ADDRESSED (April 7, 2026)
 
 Current bug: same domain triggers multiple notifications (DNS retries).
 Fix: notification ID based on domain, not UUID. iOS auto-groups by ID.
 Already partially implemented with debounce Set, but the cache + debounce
 interaction needs review.
+
+**Update**: Smart notification suppression now provides additional relief -- rate limit of max 1 notification per 5 seconds, and page resource window suppresses notifications within 3s of a whitelist hit. The underlying debounce-per-domain issue may still need review for edge cases.
 
 ---
 
@@ -322,14 +322,32 @@ Or: only flag if brand + phishing_word, not brand alone.
 
 ---
 
+## 10. Production findings: shared infrastructure and notification noise (April 7, 2026)
+
+**Problem discovered**: Visiting yahoo.com triggered 10+ notifications for invisible ad tracker domains (doubleclick.net, googlesyndication.com, etc.). These were legitimate blacklist entries -- threat feeds flag ad networks for malvertising risk. But DNS-level blocking cannot distinguish good vs bad content hosted on shared infrastructure. Blocking these domains breaks page rendering without protecting the user from actual phishing.
+
+**Root cause**: Threat feeds include shared-infrastructure domains that host both legitimate and malicious content. At the DNS level, there is no way to block only the malicious usage.
+
+**Fixes implemented**:
+1. **Ingestion filtering**: 43 shared-infrastructure domains filtered from threat feeds at ingestion time (`SHARED_INFRASTRUCTURE_DOMAINS` in `backend/app/ingestion/runner.py`). Categories: ad networks, CDNs, analytics, social platforms, major services, payment providers.
+2. **Smart notification suppression**: Only notify for domains containing a brand keyword. Page resource window (3s after whitelist hit). Rate limit (1 per 5s). Principle: "silence is the default state."
+3. **Bloom filter API confirmation**: Local FP list check + backend API confirmation eliminates false positives entirely.
+
+**Remaining risk**: New shared-infrastructure domains may appear in threat feeds over time. The `SHARED_INFRASTRUCTURE_DOMAINS` set needs periodic review. Consider automating this with the Tranco top 10K list (see 2c).
+
+---
+
 ## Priority order
 
-1. **False positive reporting** (2a) — users need a way to tell us when we're wrong
-2. **Device telemetry** (4a) — we're flying blind without data from real devices
-3. **Notification buttons** (6a) — "Not phishing?" + "Share" are high-impact UX
-4. **Infrastructure allowlist expansion** (2c) — Tranco top 10K prevents most FPs
-5. **Chained bloom filters or xor filter** (3) — eliminates bloom FPs structurally
-6. **Active learning pipeline** (5) — real data improves the model
-7. **In-app stats** (4b) — builds user trust and engagement
-8. **Share viral loop** (6b) — growth mechanism from the doc
-9. **Regional expansion** (9) — after UY is stable
+1. ~~**Multi-layer bloom confirmation** (2b) — DONE: local FP list + API confirmation~~
+2. ~~**Shared infrastructure filtering** (10) — DONE: 43 domains filtered at ingestion~~
+3. ~~**Notification suppression** (6c partial) — DONE: brand keyword filter + rate limit + page resource window~~
+4. **False positive reporting** (2a) — users need a way to tell us when we're wrong
+5. **Device telemetry** (4a) — we're flying blind without data from real devices
+6. **Notification buttons** (6a) — "Not phishing?" + "Share" are high-impact UX
+7. **Infrastructure allowlist expansion** (2c) — Tranco top 10K prevents most FPs
+8. **Chained bloom filters or xor filter** (3) — eliminates bloom FPs structurally (less urgent now with API confirmation)
+9. **Active learning pipeline** (5) — real data improves the model
+10. **In-app stats** (4b) — builds user trust and engagement
+11. **Share viral loop** (6b) — growth mechanism from the doc
+12. **Regional expansion** (9) — after UY is stable

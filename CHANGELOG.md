@@ -4,6 +4,54 @@ Built April 12-21, 2026. 38 commits, from zero to production-deployed MVP.
 
 ---
 
+## April 7, 2026 -- Bloom filter API confirmation, notification suppression, ingestion filtering
+
+### Bloom filter API confirmation
+- Bloom filter hit no longer blocks instantly
+- Checks local false positive list first (instant)
+- If not in FP list, confirms with backend API (DynamoDB lookup, ~50ms)
+- If API says block: actually block + add to runtime blacklist
+- If API says allow: forward DNS + record as false positive
+- Eliminates all bloom filter false positives
+
+### False positive distribution
+- New endpoint: GET /daily-false-positives (public, no auth)
+- Returns domains with verdict=allow checked in last 48h
+- Device polls every 30 min alongside daily blacklist
+- Prevents repeated API calls for known FPs
+
+### Shared infrastructure filtering at ingestion
+- 43 shared-infrastructure domains filtered from threat feeds at ingestion time
+- Categories: ad networks, CDNs, analytics, social platforms, major services, payment providers
+- These domains host both legitimate and malicious content -- blocking at DNS level breaks pages
+- Located in `SHARED_INFRASTRUCTURE_DOMAINS` set in `backend/app/ingestion/runner.py`
+
+### Smart notification suppression
+- Only notify for domains containing a brand keyword (brou, itau, santander, etc.)
+- Generic blacklist blocks (ad trackers, CDN malware, background app requests) silenced
+- Page resource window: suppress notifications within 3s of a whitelist hit
+- Rate limit: max 1 notification per 5 seconds
+- DNS blocking and telemetry recording unaffected -- only the notification is filtered
+- Principle: "silence is the default state"
+
+### Updated pipeline (9 layers: 0-8)
+0. DNS verdict cache
+1. Runtime blacklist
+2. Infrastructure allowlist
+3. Bloom whitelist -> allow
+4. Dual bloom blacklist -> check local FP list -> if not FP -> confirm with API -> block or allow
+4b. Daily blacklist -> block
+5. BK-tree Levenshtein -> warn + API
+6. Brand rule engine -> warn + API
+7. ML classifier -> silent: submit to API in background
+8. Allow
+
+### Other
+- 160 backend tests (was 155)
+- Key production insight: visiting yahoo.com triggered 10+ notifications for invisible ad tracker domains. Fix: filter at ingestion + suppress notifications for non-brand domains.
+
+---
+
 ## What we built
 
 **24Defend** is an anti-phishing app for iOS that blocks fraudulent links in real time. When someone clicks a malicious link — whether it arrives via WhatsApp, SMS, email, or any app — 24Defend blocks it before the page loads.
@@ -60,7 +108,7 @@ When the user visits any website, the DNS query goes through these layers in ord
 | 1 | Runtime blacklist (domains confirmed by backend this session) | O(1) | Block |
 | 2 | Infrastructure allowlist (Google, Apple, CDNs, etc.) | O(n) | Allow |
 | 3 | Bloom filter whitelist (39 institution base domains) | O(k) | Allow |
-| 4a | Dual bloom filter blacklist (72K domains, both must match) | O(2k) | Block |
+| 4 | Dual bloom filter blacklist (72K domains, both must match) | O(2k) | Check local FP list, then confirm with API |
 | 4b | Daily blacklist (polled every 30 min from backend) | O(n) | Block |
 | 5 | BK-tree Levenshtein (fuzzy match to whitelist) | O(log n) | Warn + check API |
 | 6 | Brand rule engine (25 UY brands + 40 phishing words) | O(1) | Warn + check API |
@@ -88,7 +136,7 @@ When the user visits any website, the DNS query goes through these layers in ord
 | Backend latency (agent investigation) | 15-30s |
 | Bedrock cost per investigation | ~$0.005 |
 | Estimated cost at 100 users | ~$0.80/day |
-| Backend unit tests | 155 |
+| Backend unit tests | 160 |
 | iOS unit tests | ~25 (MurmurHash3 cross-validation, bloom filter, DNS cache, classifier) |
 
 ---
