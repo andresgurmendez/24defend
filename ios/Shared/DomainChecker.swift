@@ -124,18 +124,41 @@ public final class DomainChecker {
         "aaplimg.com", "cdn-apple.com", "apple-cloudkit.com",
         // Google
         "google.com", "googleapis.com", "gstatic.com", "googlevideo.com",
-        "googleusercontent.com", "google-analytics.com", "gvt1.com",
-        "gvt2.com", "1e100.net",
+        "googleusercontent.com", "google-analytics.com", "googletagmanager.com",
+        "googlesyndication.com", "googleadservices.com", "gvt1.com",
+        "gvt2.com", "1e100.net", "google.co", "google.com.uy",
         // Microsoft
         "microsoft.com", "msedge.net", "azure.com", "azurefd.net",
         "windows.net", "office.com", "office365.com",
         // Meta
         "facebook.com", "fbcdn.net", "instagram.com", "whatsapp.net",
         // Amazon
-        "amazonaws.com", "amazon.com", "cloudfront.net",
-        // Other common infra
+        "amazonaws.com", "amazon.com", "cloudfront.net", "aws.amazon.com",
+        // Ads / analytics / tracking (legitimate infra, not phishing)
         "doubleclick.net", "crashlytics.com", "firebaseio.com",
         "appsflyer.com", "branch.io", "adjust.com",
+        "app-measurement.com", "sentry.io", "bugsnag.com",
+        "newrelic.com", "datadoghq.com", "segment.io", "mixpanel.com",
+        "amplitude.com", "hotjar.com", "clarity.ms",
+        // Social / messaging
+        "twitter.com", "x.com", "tiktok.com", "snapchat.com",
+        "linkedin.com", "pinterest.com", "reddit.com", "discord.com",
+        "telegram.org", "signal.org",
+        // Video / streaming
+        "youtube.com", "netflix.com", "spotify.com", "twitch.tv",
+        // Commerce
+        "paypal.com", "stripe.com", "shopify.com", "ebay.com",
+        // Common services
+        "github.com", "gitlab.com", "stackoverflow.com",
+        "wikipedia.org", "wikimedia.org",
+        "zoom.us", "slack.com", "notion.so", "figma.com",
+        "dropbox.com", "icloud-content.com",
+        // DNS / security
+        "cloudflare-dns.com", "one.one.one.one",
+        "opendns.com", "quad9.net",
+        // Uruguay common
+        "elobservador.com.uy", "elpais.com.uy", "montevideo.com.uy",
+        "subrayado.com.uy", "lr21.com.uy",
     ]
 
     public static func isInfrastructureDomain(_ domain: String) -> Bool {
