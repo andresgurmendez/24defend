@@ -318,7 +318,9 @@ class TestBloomFilterBEndpoint:
             resp = await client.get("/admin/bloom-filter/blacklist-b", headers=admin_headers)
             assert resp.status_code == 503
 
-    async def test_bloom_stats_includes_blacklist_b(self, client, mock_get_table, fake_table, admin_headers):
+    async def test_bloom_stats_includes_blacklist_b(
+        self, client, mock_get_table, fake_table, admin_headers
+    ):
         """GET /admin/bloom-filter/stats includes blacklist_b section with correct stats."""
         _seed(fake_table, "safe.com", "whitelist")
         _seed(fake_table, "bad.com", "blacklist")
@@ -335,3 +337,61 @@ class TestBloomFilterBEndpoint:
 
         # blacklist_b should have different size than blacklist (different fp_rate)
         assert data["blacklist_b"]["bloom_size_bytes"] != data["blacklist"]["bloom_size_bytes"]
+
+
+# ---------------------------------------------------------------------------
+# GET /daily-false-positives (public endpoint)
+# ---------------------------------------------------------------------------
+
+class TestDailyFalsePositives:
+    async def test_empty_when_no_cache_entries(self, client, mock_get_table):
+        """Returns empty domain list when no cache entries exist."""
+        resp = await client.get("/daily-false-positives")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["domains"] == []
+        assert "updated_at" in data
+
+    async def test_returns_allowed_domains_within_48h(self, client, mock_get_table, fake_table):
+        """Returns domains with verdict=allow and checked_at within the last 48 hours."""
+        recent = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        _seed(fake_table, "false-positive.com", "cache", verdict="allow", checked_at=recent)
+
+        resp = await client.get("/daily-false-positives")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "false-positive.com" in data["domains"]
+
+    async def test_excludes_domains_older_than_48h(self, client, mock_get_table, fake_table):
+        """Does NOT return domains with checked_at older than 48 hours."""
+        old = (datetime.now(timezone.utc) - timedelta(hours=49)).isoformat()
+        _seed(fake_table, "old-fp.com", "cache", verdict="allow", checked_at=old)
+
+        resp = await client.get("/daily-false-positives")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "old-fp.com" not in data["domains"]
+
+    async def test_excludes_block_and_warn_verdicts(self, client, mock_get_table, fake_table):
+        """Does NOT return domains with verdict=block or verdict=warn."""
+        recent = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        _seed(fake_table, "blocked.com", "cache", verdict="block", checked_at=recent)
+        _seed(fake_table, "warned.com", "cache", verdict="warn", checked_at=recent)
+        _seed(fake_table, "allowed.com", "cache", verdict="allow", checked_at=recent)
+
+        resp = await client.get("/daily-false-positives")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "blocked.com" not in data["domains"]
+        assert "warned.com" not in data["domains"]
+        assert "allowed.com" in data["domains"]
+
+    async def test_requires_no_authentication(self, client, mock_get_table, fake_table):
+        """The /daily-false-positives endpoint is public (no API key required)."""
+        recent = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        _seed(fake_table, "fp-domain.com", "cache", verdict="allow", checked_at=recent)
+
+        # No headers at all -- should still work
+        resp = await client.get("/daily-false-positives")
+        assert resp.status_code == 200
+        assert "fp-domain.com" in resp.json()["domains"]
