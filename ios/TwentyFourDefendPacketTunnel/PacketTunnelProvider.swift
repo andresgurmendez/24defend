@@ -510,9 +510,22 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     // MARK: - Notifications
 
     private func sendNotification(domain: String, reason: String, severity: EventSeverity, force: Bool = false) {
+        // Only notify for domains that impersonate a known brand.
+        // Generic blacklist blocks (ad trackers, CDN malware) are silenced.
+        // The user only cares about phishing that targets THEIR bank/institution.
+        if !force {
+            let domainLower = domain.lowercased()
+            let hasBrand = BrandRuleEngine.brands.contains { domainLower.contains($0) }
+            if !hasBrand {
+                logger.info("Suppressed notification for \(domain) — no brand impersonation")
+                return
+            }
+        }
+
         // Suppress if we're in a "page resource" window (user just visited a whitelisted domain)
         if !force, let lastWL = lastWhitelistHitTime, Date().timeIntervalSince(lastWL) < 3.0 {
-            logger.info("Suppressed notification for \(domain) — likely page resource of \(lastWhitelistDomain ?? "unknown")")
+            let wlDomain = self.lastWhitelistDomain ?? "unknown"
+            logger.info("Suppressed notification for \(domain) — likely page resource of \(wlDomain)")
             return
         }
 
