@@ -39,13 +39,50 @@ SHARED_INFRASTRUCTURE_DOMAINS = {
 }
 
 
+async def _fetch_popular_domains() -> set[str]:
+    """Download Majestic Million top 100K domains to filter shared infrastructure.
+
+    Any domain in the top 100K is too popular to block at the DNS level —
+    it serves millions of legitimate users even if one malicious URL was hosted there.
+    """
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.get("https://downloads.majestic.com/majestic_million.csv")
+            if resp.status_code != 200:
+                logger.warning(f"Majestic Million returned {resp.status_code}, falling back to hardcoded list")
+                return SHARED_INFRASTRUCTURE_DOMAINS
+
+            popular = set()
+            for i, line in enumerate(resp.text.strip().split("\n")):
+                if i == 0:
+                    continue  # skip header
+                if i > 100000:
+                    break
+                parts = line.split(",")
+                if len(parts) >= 3:
+                    popular.add(parts[2].lower().strip())
+
+            logger.info(f"Loaded {len(popular)} popular domains from Majestic Million")
+            return popular
+
+    except Exception as e:
+        logger.warning(f"Failed to fetch Majestic Million: {e}, falling back to hardcoded list")
+        return SHARED_INFRASTRUCTURE_DOMAINS
+
+
 async def run_blacklist_ingestion() -> dict:
     """Fetch all public blacklist sources and store new domains.
 
-    Skips domains already in DynamoDB (blacklist, whitelist, or cache).
-    Returns stats about what was ingested.
+    Filters out popular/shared-infrastructure domains that shouldn't
+    be blocked at the DNS level.
     """
-    sources = await fetch_all_blacklists()
+    # Fetch threat feeds and popular domain list in parallel
+    import asyncio
+    sources_task = fetch_all_blacklists()
+    popular_task = _fetch_popular_domains()
+    sources, popular_domains = await asyncio.gather(sources_task, popular_task)
 
     # Deduplicate across all sources
     all_domains: set[str] = set()
@@ -54,18 +91,19 @@ async def run_blacklist_ingestion() -> dict:
 
     logger.info(f"Total unique domains across all sources: {len(all_domains)}")
 
-    # Filter out shared-infrastructure domains — blocking these at DNS level
-    # breaks legitimate pages (CDNs, ad networks, major platforms, etc.)
+    # Filter out popular/shared-infrastructure domains
+    # A domain in Majestic top 100K serves millions of users — blocking it
+    # at DNS level breaks pages without meaningful phishing protection
     before_filter = len(all_domains)
     all_domains = {
         d for d in all_domains
-        if extract_base_domain(d) not in SHARED_INFRASTRUCTURE_DOMAINS
+        if extract_base_domain(d) not in popular_domains
     }
     filtered_count = before_filter - len(all_domains)
     if filtered_count:
         logger.info(
-            f"Filtered {filtered_count} shared-infrastructure domains "
-            f"(CDNs, ad networks, major platforms)"
+            f"Filtered {filtered_count} popular/shared-infrastructure domains "
+            f"(Majestic top 100K + hardcoded list)"
         )
 
     # Skip dedup on large batches — DynamoDB batch_writer handles overwrites
