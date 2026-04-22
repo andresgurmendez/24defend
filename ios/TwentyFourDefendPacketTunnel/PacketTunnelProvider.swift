@@ -137,10 +137,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         guard let query = DNSPacket.parseQuery(from: parsed.dnsPayload) else { return }
 
         let domain = query.domainName
+        let domainLower = domain.lowercased()  // compute once, reuse everywhere
         telemetry.incrementTotalQueries()
 
         // 0. Local verdict cache — skip all layers for recently seen domains
-        if let cached = dnsCache.get(domain) {
+        if let cached = dnsCache.get(domainLower) {
             telemetry.incrementCacheHits()
             switch cached {
             case .allow:
@@ -156,7 +157,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let store = BloomFilterStore.shared
 
         // 1. Runtime blacklist (domains confirmed bad by backend this session)
-        if runtimeBlacklist.contains(domain.lowercased()) {
+        if runtimeBlacklist.contains(domainLower) {
             dnsCache.set(domain, verdict: .block)
             logger.warning("BLOCKED (runtime) \(domain)")
             telemetry.recordBlock(domain: domain, layer: "runtime_blacklist")
@@ -169,7 +170,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
 
         // 2. Infrastructure domains → always allow (CDNs, Apple, Google, etc.)
-        if DomainChecker.isInfrastructureDomain(domain.lowercased()) {
+        if DomainChecker.isInfrastructureDomain(domainLower) {
             telemetry.incrementInfrastructureAllowed()
             dnsCache.set(domain, verdict: .allow)
             forwardToUpstream(query: query, original: parsed, proto: proto)

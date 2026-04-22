@@ -113,8 +113,9 @@ public final class DomainChecker {
 
     // MARK: - Infrastructure domain filter
 
-    /// Known CDN, system, and infrastructure domain suffixes that should never be flagged.
-    private static let infrastructureSuffixes: [String] = [
+    /// Known CDN, system, and infrastructure domains that should never be flagged.
+    /// Stored as a Set for O(1) lookup via base domain extraction.
+    private static let infrastructureSet: Set<String> = [
         // CDNs
         "akamaiedge.net", "akamai.net", "akadns.net", "akamaized.net",
         "cloudfront.net", "cloudflare.com", "fastly.net", "edgekey.net",
@@ -162,11 +163,8 @@ public final class DomainChecker {
     ]
 
     public static func isInfrastructureDomain(_ domain: String) -> Bool {
-        for suffix in infrastructureSuffixes {
-            if domain == suffix || domain.hasSuffix(".\(suffix)") {
-                return true
-            }
-        }
-        return false
+        // O(1) Set lookup via base domain extraction instead of O(n) suffix scan
+        let base = BloomFilterStore.extractBaseDomain(domain)
+        return infrastructureSet.contains(base)
     }
 }

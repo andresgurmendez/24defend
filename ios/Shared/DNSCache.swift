@@ -18,7 +18,7 @@ public final class DNSCache {
     private var accessOrder: [String] = []  // most recent at end
     private let maxSize: Int
     private let ttl: TimeInterval
-    private let lock = NSLock()
+    private var _lock = os_unfair_lock()
 
     /// - Parameters:
     ///   - maxSize: Maximum number of cached entries (default 2000)
@@ -31,8 +31,8 @@ public final class DNSCache {
     /// Look up a domain in the cache. Returns nil if not cached or expired.
     public func get(_ domain: String) -> CachedVerdict? {
         let key = domain.lowercased()
-        lock.lock()
-        defer { lock.unlock() }
+        os_unfair_lock_lock(&_lock)
+        defer { os_unfair_lock_unlock(&_lock) }
 
         guard let entry = cache[key] else { return nil }
 
@@ -53,8 +53,8 @@ public final class DNSCache {
     /// Cache a verdict for a domain.
     public func set(_ domain: String, verdict: CachedVerdict) {
         let key = domain.lowercased()
-        lock.lock()
-        defer { lock.unlock() }
+        os_unfair_lock_lock(&_lock)
+        defer { os_unfair_lock_unlock(&_lock) }
 
         // Remove old entry if exists
         if cache[key] != nil {
@@ -76,16 +76,16 @@ public final class DNSCache {
 
     /// Clear all cached entries. Called on bloom filter / classifier refresh.
     public func clear() {
-        lock.lock()
-        defer { lock.unlock() }
+        os_unfair_lock_lock(&_lock)
+        defer { os_unfair_lock_unlock(&_lock) }
         cache.removeAll()
         accessOrder.removeAll()
     }
 
     /// Number of cached entries.
     public var count: Int {
-        lock.lock()
-        defer { lock.unlock() }
+        os_unfair_lock_lock(&_lock)
+        defer { os_unfair_lock_unlock(&_lock) }
         return cache.count
     }
 }
