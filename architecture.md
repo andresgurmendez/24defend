@@ -2,7 +2,7 @@
 
 Anti-phishing link protection for mobile devices, targeting Latin America.
 
-24Defend intercepts DNS queries on iOS devices using a NetworkExtension packet tunnel, checks domains against a 9-layer on-device pipeline (DNS verdict cache, runtime blacklist, infrastructure allowlist, bloom whitelist, dual bloom blacklist with local FP list + API confirmation, daily blacklist, BK-tree fuzzy matching, brand rule engine, silent ML screener), and escalates uncertain domains to a backend investigation agent powered by AWS Bedrock Claude Sonnet. The system ingests public threat feeds daily (filtering 43 shared-infrastructure domains at ingestion), generates compact bloom filters that the iOS app downloads for offline protection, and maintains an ML pipeline for training lightweight phishing classifiers from synthetic and real-world data.
+24Defend intercepts DNS queries on iOS devices using a NetworkExtension packet tunnel, checks domains against a 9-layer on-device pipeline (DNS verdict cache, runtime blacklist, infrastructure allowlist, bloom whitelist, dual bloom blacklist with local FP list + API confirmation, daily blacklist, BK-tree fuzzy matching, brand rule engine, silent ML screener), and escalates uncertain domains to a backend investigation agent powered by AWS Bedrock Claude Sonnet. The system ingests public threat feeds daily (filtering shared-infrastructure domains via Majestic Million top 100K at ingestion), generates compact bloom filters that the iOS app downloads for offline protection, and maintains an ML pipeline for training lightweight phishing classifiers from synthetic and real-world data.
 
 ---
 
@@ -454,7 +454,7 @@ Four public threat intelligence feeds ingested concurrently:
 **Ingestion flow**:
 1. Fetch all sources concurrently (tolerates individual failures)
 2. Extract domains from URLs (strip protocol, path, port, query, fragment)
-3. Filter out shared infrastructure domains (43 domains: ad networks, CDNs, analytics, social platforms, major services, payment providers). These domains host both legitimate and malicious content -- blocking at DNS level breaks pages. Defined in `SHARED_INFRASTRUCTURE_DOMAINS` set in `backend/app/ingestion/runner.py`.
+3. Filter out shared infrastructure domains using the Majestic Million top 100K list (downloaded at ingestion time, ~15MB CSV). Any blacklist domain whose base domain appears in the top 100K is excluded -- these host both legitimate and malicious content, and blocking at DNS level breaks pages. Falls back to a hardcoded 43-domain `SHARED_INFRASTRUCTURE_DOMAINS` set in `backend/app/ingestion/runner.py` if the download fails.
 4. Deduplicate across all sources
 5. Skip domains already in DynamoDB (blacklist, whitelist, or cache)
 6. Batch insert new domains as `entry_type=blacklist`

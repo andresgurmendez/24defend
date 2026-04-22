@@ -38,7 +38,7 @@ Force rebuild by changing Dockerfile comment. CDK caches Docker image by content
 Swift bloom filter uses Python-style signed int32 modulo (pythonMod function). Never use unsigned modulo for bloom filter lookups.
 
 ### Shared infrastructure filtering
-43 shared-infrastructure domains (ad networks, CDNs, analytics, social platforms) are filtered at ingestion in `backend/app/ingestion/runner.py` (`SHARED_INFRASTRUCTURE_DOMAINS` set). These host both legitimate and malicious content -- blocking at DNS level breaks pages. Add domains here when threat feeds include shared-infrastructure domains.
+At ingestion time, the backend downloads the Majestic Million top 100K popular domains and filters out any blacklist domain whose base domain appears in that list. This replaces manual curation -- domains like adnxs.com (#2215), doubleclick.net (#25K), googletagmanager.com (#36K) are automatically excluded. The hardcoded `SHARED_INFRASTRUCTURE_DOMAINS` set (43 domains) in `backend/app/ingestion/runner.py` remains as a fallback if the Majestic Million download fails. No need to manually add domains to the hardcoded set unless the download is persistently unavailable.
 
 ### Smart notification suppression
 Only notify for domains containing a brand keyword. Generic blacklist blocks are silenced. Page resource window: suppress within 3s of a whitelist hit. Rate limit: max 1 per 5s. Principle: "silence is the default state." DNS blocking and telemetry are unaffected.

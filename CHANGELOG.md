@@ -4,6 +4,17 @@ Built April 12-21, 2026. 38 commits, from zero to production-deployed MVP.
 
 ---
 
+## April 7, 2026 -- Majestic Million ingestion filtering
+
+### Majestic Million shared infrastructure filtering
+- Ingestion now downloads the Majestic Million top 100K popular domains (~15MB CSV) and filters out any blacklist domain whose base domain appears in that list
+- Replaces the hardcoded 43-domain `SHARED_INFRASTRUCTURE_DOMAINS` set as the primary filter
+- Automatic -- no manual curation needed; covers adnxs.com (#2215), doubleclick.net (#25K), googletagmanager.com (#36K), and thousands more
+- Hardcoded set remains as a fallback if the Majestic Million download fails
+- Located in `backend/app/ingestion/runner.py`
+
+---
+
 ## April 7, 2026 -- Bloom filter API confirmation, notification suppression, ingestion filtering
 
 ### Bloom filter API confirmation

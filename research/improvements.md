@@ -71,9 +71,11 @@ Bloom filter hit → check local FP list (instant) → if known FP → allow
 
 This eliminates all bloom filter false positives. The daily FP list (GET /daily-false-positives, polled every 30 min) prevents repeated API calls for domains already confirmed safe.
 
-### 2c. Infrastructure allowlist improvements
+### 2c. Infrastructure allowlist improvements -- LARGELY ADDRESSED (Majestic Million)
 
-- Expand the allowlist with Tranco top 10K base domains (auto-downloaded monthly)
+Ingestion now downloads the Majestic Million top 100K domains and filters out any blacklist domain whose base domain appears in that list. This replaces the need for manual Tranco top 10K curation -- Majestic Million is free, ~15MB CSV, and covers domains like adnxs.com (#2215), doubleclick.net (#25K), googletagmanager.com (#36K). The hardcoded 43-domain set remains as a fallback if the download fails.
+
+**Remaining ideas**:
 - Add regional domains: `.gub.uy`, UY government sites, UY news sites, UY banks (already whitelisted)
 - Ship the allowlist as a separate bloom filter from the backend (updatable without app release)
 
@@ -329,23 +331,21 @@ Or: only flag if brand + phishing_word, not brand alone.
 **Root cause**: Threat feeds include shared-infrastructure domains that host both legitimate and malicious content. At the DNS level, there is no way to block only the malicious usage.
 
 **Fixes implemented**:
-1. **Ingestion filtering**: 43 shared-infrastructure domains filtered from threat feeds at ingestion time (`SHARED_INFRASTRUCTURE_DOMAINS` in `backend/app/ingestion/runner.py`). Categories: ad networks, CDNs, analytics, social platforms, major services, payment providers.
+1. **Ingestion filtering**: Majestic Million top 100K domains downloaded at ingestion time and used to filter shared-infrastructure domains from threat feeds. Replaces the original hardcoded 43-domain `SHARED_INFRASTRUCTURE_DOMAINS` set (which remains as a fallback). Located in `backend/app/ingestion/runner.py`. Automatic -- no manual curation needed.
 2. **Smart notification suppression**: Only notify for domains containing a brand keyword. Page resource window (3s after whitelist hit). Rate limit (1 per 5s). Principle: "silence is the default state."
 3. **Bloom filter API confirmation**: Local FP list check + backend API confirmation eliminates false positives entirely.
-
-**Remaining risk**: New shared-infrastructure domains may appear in threat feeds over time. The `SHARED_INFRASTRUCTURE_DOMAINS` set needs periodic review. Consider automating this with the Tranco top 10K list (see 2c).
 
 ---
 
 ## Priority order
 
 1. ~~**Multi-layer bloom confirmation** (2b) — DONE: local FP list + API confirmation~~
-2. ~~**Shared infrastructure filtering** (10) — DONE: 43 domains filtered at ingestion~~
+2. ~~**Shared infrastructure filtering** (10) — DONE: Majestic Million top 100K filtering at ingestion (hardcoded 43-domain fallback)~~
 3. ~~**Notification suppression** (6c partial) — DONE: brand keyword filter + rate limit + page resource window~~
 4. **False positive reporting** (2a) — users need a way to tell us when we're wrong
 5. **Device telemetry** (4a) — we're flying blind without data from real devices
 6. **Notification buttons** (6a) — "Not phishing?" + "Share" are high-impact UX
-7. **Infrastructure allowlist expansion** (2c) — Tranco top 10K prevents most FPs
+7. ~~**Infrastructure allowlist expansion** (2c) — DONE: Majestic Million top 100K replaces manual curation~~
 8. **Chained bloom filters or xor filter** (3) — eliminates bloom FPs structurally (less urgent now with API confirmation)
 9. **Active learning pipeline** (5) — real data improves the model
 10. **In-app stats** (4b) — builds user trust and engagement
