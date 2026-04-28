@@ -16,8 +16,10 @@ struct TwentyFourDefendApp: App {
                     BlockDetailView(
                         domain: blockAlert.domain,
                         reason: blockAlert.reason,
-                        severity: blockAlert.severity
+                        severity: blockAlert.severity,
+                        autoShare: blockAlert.shouldShare
                     )
+                    .onDisappear { blockAlert.shouldShare = false }
                 }
                 .onAppear {
                     requestNotificationPermission()
@@ -33,6 +35,7 @@ struct TwentyFourDefendApp: App {
 
 class BlockAlertState: ObservableObject {
     @Published var isPresented = false
+    @Published var shouldShare = false
     @Published var domain = ""
     @Published var reason = ""
     @Published var severity: EventSeverity = .red
@@ -44,7 +47,28 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        registerNotificationActions()
         return true
+    }
+
+    private func registerNotificationActions() {
+        let shareAction = UNNotificationAction(
+            identifier: "SHARE_ACTION",
+            title: "Avisar a familiares",
+            options: [.foreground]
+        )
+        let detailAction = UNNotificationAction(
+            identifier: "DETAIL_ACTION",
+            title: "Ver detalles",
+            options: [.foreground]
+        )
+        let category = UNNotificationCategory(
+            identifier: "BLOCK_ALERT",
+            actions: [shareAction, detailAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([category])
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
@@ -57,13 +81,20 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         let content = response.notification.request.content
+        let domain = content.body.components(separatedBy: " is ").first
+            ?? content.body.components(separatedBy: " — ").first
+            ?? content.body
+        let severity: EventSeverity = content.title.contains("Phishing") ? .red : .yellow
 
         DispatchQueue.main.async {
-            self.blockAlert.domain = content.body.components(separatedBy: " is ").first
-                ?? content.body.components(separatedBy: " — ").first
-                ?? content.body
+            self.blockAlert.domain = domain
             self.blockAlert.reason = content.body
-            self.blockAlert.severity = content.title.contains("Phishing") ? .red : .yellow
+            self.blockAlert.severity = severity
+
+            if response.actionIdentifier == "SHARE_ACTION" {
+                // Open app with share sheet directly
+                self.blockAlert.shouldShare = true
+            }
             self.blockAlert.isPresented = true
         }
 

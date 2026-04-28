@@ -554,6 +554,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
 
         content.sound = .default
+        content.categoryIdentifier = "BLOCK_ALERT"
 
         let request = UNNotificationRequest(
             identifier: "24defend-\(domain)",

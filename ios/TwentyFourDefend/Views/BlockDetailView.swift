@@ -4,7 +4,44 @@ struct BlockDetailView: View {
     let domain: String
     let reason: String
     let severity: EventSeverity
+    var autoShare: Bool = false
     @Environment(\.dismiss) private var dismiss
+    @State private var showShareSheet = false
+
+    /// Extract brand name from the domain for the share message
+    private var detectedBrand: String? {
+        let d = domain.lowercased()
+        let brandNames: [(keyword: String, display: String)] = [
+            ("brou", "BROU"), ("itau", "Itau"), ("santander", "Santander"),
+            ("scotiabank", "Scotiabank"), ("bbva", "BBVA"), ("hsbc", "HSBC"),
+            ("mercadopago", "MercadoPago"), ("mercadolibre", "MercadoLibre"),
+            ("oca", "OCA"), ("prex", "Prex"), ("antel", "Antel"),
+            ("movistar", "Movistar"), ("claro", "Claro"),
+            ("abitab", "Abitab"), ("redpagos", "RedPagos"),
+            ("pedidosya", "PedidosYa"), ("bps", "BPS"), ("dgi", "DGI"),
+        ]
+        return brandNames.first { d.contains($0.keyword) }?.display
+    }
+
+    private var shareMessage: String {
+        if let brand = detectedBrand {
+            return """
+            Acabo de bloquear un intento de fraude en mi celular. \
+            Era un link falso que se hacia pasar por \(brand) para robar datos. \
+            24Defend lo detecto y bloqueo automaticamente antes de que pudiera abrirlo.\n\n\
+            Si te llega algo parecido, esta app te puede proteger:\n\
+            https://www.24defend.com/?ref=share&brand=\(brand.lowercased())
+            """
+        } else {
+            return """
+            Acabo de bloquear un intento de fraude en mi celular. \
+            24Defend detecto un link peligroso y lo bloqueo automaticamente \
+            antes de que pudiera abrirlo.\n\n\
+            Si te llega algun link sospechoso, esta app te puede proteger:\n\
+            https://www.24defend.com/?ref=share
+            """
+        }
+    }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -31,7 +68,7 @@ struct BlockDetailView: View {
             // Description
             Text(severity == .red
                  ? "24Defend ha bloqueado el acceso a este sitio porque ha sido identificado como fraudulento o de phishing."
-                 : "Este dominio es similar a un sitio oficial verificado. Proceda con precaución.")
+                 : "Este dominio es similar a un sitio oficial verificado. Proceda con precaucion.")
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -46,13 +83,19 @@ struct BlockDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .padding(.horizontal, 40)
 
-            // Reason
-            if !reason.isEmpty {
-                Text(reason)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+            // Brand impersonation callout
+            if let brand = detectedBrand {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text("Este sitio se hace pasar por \(brand)")
+                        .font(.subheadline.weight(.medium))
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity)
+                .background(Color.orange.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 40)
             }
 
             Spacer()
@@ -61,14 +104,48 @@ struct BlockDetailView: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
 
-            Button("Cerrar") { dismiss() }
+            // Share button — primary CTA
+            Button {
+                showShareSheet = true
+            } label: {
+                HStack {
+                    Image(systemName: "square.and.arrow.up")
+                    Text("Avisar a familiares")
+                }
                 .font(.headline)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color(.systemGray5))
+                .background(Color.blue)
+                .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
-                .padding(.horizontal, 40)
+            }
+            .padding(.horizontal, 40)
+
+            Button("Cerrar") { dismiss() }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 .padding(.bottom, 20)
         }
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(items: [shareMessage])
+        }
+        .onAppear {
+            if autoShare {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    showShareSheet = true
+                }
+            }
+        }
     }
+}
+
+/// UIKit share sheet wrapper for SwiftUI
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
