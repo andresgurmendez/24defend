@@ -27,6 +27,9 @@ PHISHING_WORDS = {
     "pin", "token", "tarjeta", "credencial", "acceso",
     "cuenta", "usuario", "login", "signin", "ingreso",
     "formulario", "datos", "informacion",
+    "puntos", "premio", "ganaste", "sorteo", "regalo",
+    "beneficio", "promocion", "oferta", "descuento", "cupon",
+    "recompensa", "canje", "redimir",
 }
 
 HIGH_RISK_TLDS = {

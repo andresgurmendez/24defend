@@ -43,6 +43,10 @@ public final class BrandRuleEngine {
         // Common phishing patterns
         "login", "signin", "logon", "ingreso", "ingresar",
         "formulario", "datos", "informacion",
+        // Rewards / loyalty scams (common in LatAm)
+        "puntos", "premio", "ganaste", "sorteo", "regalo",
+        "beneficio", "promocion", "oferta", "descuento", "cupon",
+        "recompensa", "canje", "redimir",
     ]
 
     // MARK: - TLD risk scores
@@ -52,6 +56,7 @@ public final class BrandRuleEngine {
         "pw", "cc", "club", "icu", "cam", "link", "online",
         "site", "website", "space", "info", "bid", "win", "loan",
         "racing", "review", "download", "stream", "trade", "date",
+        "st", "su", "ga", "ws", "to", "me",  // country TLDs commonly abused
     ]
 
     static let lowRiskTLDs: Set<String> = [

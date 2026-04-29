@@ -272,7 +272,9 @@ def domain_heuristics(domain: str) -> str:
     phish_words = {"actualizar", "actualizacion", "verificar", "verificacion",
                    "confirmar", "seguridad", "bloqueo", "suspension", "urgente",
                    "homebanking", "transferencia", "clave", "pin", "token",
-                   "tarjeta", "cuenta", "login", "acceso", "desbloquear"}
+                   "tarjeta", "cuenta", "login", "acceso", "desbloquear",
+                   "puntos", "premio", "ganaste", "sorteo", "regalo",
+                   "promocion", "oferta", "descuento", "canje"}
 
     name_part = d.split(".")[0] if "." in d else d
     found_brands = [b for b in brands if b in d]
