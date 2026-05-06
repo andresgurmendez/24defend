@@ -161,3 +161,102 @@ class TestCheckEndpoint:
         resp = await client.post("/check", json={"domain": "partner.com"})
         data = resp.json()
         assert "acme-corp" in data["reason"]
+
+
+# ---------------------------------------------------------------------------
+# Retroactive investigation polling tests
+# ---------------------------------------------------------------------------
+
+class TestRetroactiveInvestigation:
+    """Tests simulating the pending investigation polling flow.
+
+    When the ML classifier silently submits a domain, the app polls /check
+    every 30 seconds. These tests verify the API returns the correct verdict
+    at each stage of the investigation lifecycle.
+    """
+
+    async def test_unknown_domain_triggers_agent_returns_result(self, client, mock_get_table):
+        """First call to /check for unknown domain triggers agent investigation."""
+        mock_entry = DomainEntry(
+            domain="oca.puntos.st",
+            entry_type=EntryType.cache,
+            verdict=Verdict.block,
+            confidence=0.93,
+            reason="Phishing site impersonating OCA",
+        )
+        with patch("app.routes.check.investigate_domain", new_callable=AsyncMock) as mock_agent:
+            mock_agent.return_value = mock_entry
+
+            resp = await client.post("/check", json={"domain": "oca.puntos.st"})
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["verdict"] == "block"
+            assert data["source"] == "agent"
+            mock_agent.assert_awaited_once()
+
+    async def test_second_poll_returns_cached_block(self, client, mock_get_table, fake_table):
+        """After agent caches result, subsequent polls return cached block instantly."""
+        from datetime import datetime, timezone
+        _seed_domain(
+            fake_table, "oca.puntos.st", "cache",
+            verdict="block", confidence="0.93",
+            reason="Phishing site impersonating OCA",
+            checked_at=datetime.now(timezone.utc).isoformat(),
+        )
+
+        resp = await client.post("/check", json={"domain": "oca.puntos.st"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["verdict"] == "block"
+        assert data["source"] == "cache"
+        assert data["confidence"] == 0.93
+
+    async def test_second_poll_returns_cached_allow(self, client, mock_get_table, fake_table):
+        """Agent cached allow verdict — polling returns allow (domain is safe)."""
+        from datetime import datetime, timezone
+        _seed_domain(
+            fake_table, "legit-site.com", "cache",
+            verdict="allow", confidence="0.95",
+            reason="Legitimate site",
+            checked_at=datetime.now(timezone.utc).isoformat(),
+        )
+
+        resp = await client.post("/check", json={"domain": "legit-site.com"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["verdict"] == "allow"
+        assert data["source"] == "cache"
+
+    async def test_brand_subdomain_phishing(self, client, mock_get_table):
+        """Domain with brand in subdomain (oca.puntos.st) detected by agent."""
+        mock_entry = DomainEntry(
+            domain="oca.puntos.st",
+            entry_type=EntryType.cache,
+            verdict=Verdict.block,
+            confidence=0.93,
+            reason="Brand impersonation: OCA on .st TLD with reward lure",
+        )
+        with patch("app.routes.check.investigate_domain", new_callable=AsyncMock) as mock_agent:
+            mock_agent.return_value = mock_entry
+
+            resp = await client.post("/check", json={"domain": "oca.puntos.st"})
+            data = resp.json()
+            assert data["verdict"] == "block"
+            assert "OCA" in data["reason"] or "oca" in data["reason"].lower()
+
+    async def test_reward_scam_vocabulary(self, client, mock_get_table):
+        """Domains with reward/loyalty scam patterns are investigated."""
+        mock_entry = DomainEntry(
+            domain="brou-puntos-2026.xyz",
+            entry_type=EntryType.cache,
+            verdict=Verdict.block,
+            confidence=0.95,
+            reason="Brand + reward scam pattern",
+        )
+        with patch("app.routes.check.investigate_domain", new_callable=AsyncMock) as mock_agent:
+            mock_agent.return_value = mock_entry
+
+            resp = await client.post("/check", json={"domain": "brou-puntos-2026.xyz"})
+            data = resp.json()
+            assert data["verdict"] == "block"
+            assert data["source"] == "agent"

@@ -43,6 +43,9 @@ PHISHING_WORDS = {
     "pin", "token", "tarjeta", "credencial", "acceso",
     "cuenta", "usuario", "login", "signin", "ingreso",
     "formulario", "datos", "informacion",
+    "puntos", "premio", "ganaste", "sorteo", "regalo",
+    "beneficio", "promocion", "oferta", "descuento", "cupon",
+    "recompensa", "canje", "redimir",
 }
 
 HIGH_RISK_TLDS = {
@@ -353,3 +356,55 @@ class TestPipelineLayerOrder:
         assert brand["matched_brand"] is None
         # ML might or might not flag it, but it should NOT be warn_brand
         assert verdict in ("allow", "warn_ml_silent")
+
+
+class TestRewardScamDetection:
+    """Verify reward/loyalty scam vocabulary catches real attack patterns."""
+
+    REWARD_PHISHING = [
+        ("oca.puntos.st", "oca", True),            # real case from production
+        ("brou-puntos-2026.xyz", "brou", True),     # brand + puntos + year
+        ("itau-premio.top", "itau", True),          # brand + premio
+        ("santander-sorteo.click", "santander", True),  # brand + sorteo
+        ("mercadopago-oferta.xyz", "mercadopago", True),  # brand + oferta
+    ]
+
+    REWARD_LEGITIMATE = [
+        ("puntos-shopping.com", None, False),       # no brand, just "puntos"
+        ("ofertas.com.uy", None, False),             # generic deals site
+        ("premios.com", None, False),                # generic
+        ("cupon-descuento.com", None, False),        # generic coupons
+    ]
+
+    def test_reward_phishing_detected(self):
+        """Domains with brand + reward word trigger brand rule warning."""
+        for domain, expected_brand, should_trigger in self.REWARD_PHISHING:
+            result = brand_rule_check(domain)
+            assert result["matched_brand"] is not None, \
+                f"Brand not detected in '{domain}'"
+            assert result["is_high_risk"] == should_trigger, \
+                f"'{domain}' should_trigger={should_trigger} but is_high_risk={result['is_high_risk']}"
+
+    def test_reward_legitimate_not_flagged(self):
+        """Generic reward/deal domains without brand keywords are not flagged."""
+        for domain, _, _ in self.REWARD_LEGITIMATE:
+            result = brand_rule_check(domain)
+            assert not result["is_high_risk"], \
+                f"False positive: '{domain}' flagged as high risk"
+
+    def test_oca_puntos_st_full_pipeline(self):
+        """The real oca.puntos.st case: brand rule engine should catch it."""
+        verdict = client_side_verdict("oca.puntos.st")
+        assert verdict == "warn_brand", \
+            f"oca.puntos.st should be warn_brand, got '{verdict}'"
+
+    def test_whitelisted_reward_subdomain_allowed(self):
+        """puntos.brou.com.uy (hypothetical official rewards) would be allowed
+        by whitelist bloom filter — not tested here but documented."""
+        # The whitelist bloom filter runs before brand rules in the real pipeline.
+        # brou.com.uy is whitelisted, so puntos.brou.com.uy would be allowed.
+        # This test just verifies that the brand rule WOULD trigger if the
+        # whitelist didn't catch it first.
+        result = brand_rule_check("puntos.brou.com.uy")
+        assert result["is_high_risk"], \
+            "Brand + reward word should trigger (whitelist catches it upstream)"
