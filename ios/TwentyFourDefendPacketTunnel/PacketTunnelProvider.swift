@@ -13,6 +13,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private var httpsRejectListener: NWListener?
     private var refreshTimer: DispatchSourceTimer?
     private var dailyBlacklistTimer: DispatchSourceTimer?
+    private var investigationTimer: DispatchSourceTimer?
     private let dnsCache = DNSCache(maxSize: 2000, ttl: 3600) // 2K entries, 1 hour TTL
     private let telemetry = TelemetryClient.shared
     private var lastWhitelistHitTime: Date?
@@ -53,6 +54,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             Task { await self.refreshData() }
             self.startRefreshTimer()
             self.startDailyBlacklistTimer()
+            self.startInvestigationPolling()
             self.telemetry.startUploadTimer()
         }
     }
@@ -63,6 +65,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         refreshTimer = nil
         dailyBlacklistTimer?.cancel()
         dailyBlacklistTimer = nil
+        investigationTimer?.cancel()
+        investigationTimer = nil
         telemetry.stopAndFlush()
         completionHandler()
     }
@@ -94,6 +98,37 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
         timer.resume()
         dailyBlacklistTimer = timer
+    }
+
+    private func startInvestigationPolling() {
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        timer.schedule(deadline: .now() + 30, repeating: 30) // every 30 seconds
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            Task {
+                let threats = await PendingInvestigation.shared.pollAll()
+                for domain in threats {
+                    self.runtimeBlacklist.insert(domain)
+                    self.dnsCache.set(domain, verdict: .block)
+                    self.telemetry.recordBlock(domain: domain, layer: "investigation")
+                    BlockLog.append(BlockEvent(
+                        domain: domain,
+                        reason: "Confirmed fraudulent after investigation",
+                        severity: .red
+                    ))
+                    // Critical safety notification — bypass all suppression
+                    self.sendNotification(
+                        domain: domain,
+                        reason: "Si ingresaste datos personales, cambia tu contrasena.",
+                        severity: .red,
+                        force: true
+                    )
+                    self.logger.warning("RETROACTIVE BLOCK: \(domain) confirmed malicious after investigation")
+                }
+            }
+        }
+        timer.resume()
+        investigationTimer = timer
     }
 
     private func refreshData() async {
@@ -272,7 +307,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 dnsCache.set(domain, verdict: .allow)
                 forwardToUpstream(query: query, original: parsed, proto: proto)
 
-                // Fire-and-forget: silently submit to backend for investigation
+                // Submit to backend for investigation + track for retroactive notification
+                PendingInvestigation.shared.add(domain: domain)
                 Task.detached(priority: .utility) {
                     _ = await APIClient.checkDomain(domain)
                 }
@@ -546,8 +582,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         switch severity {
         case .red:
-            content.title = "Phishing link blocked"
-            content.body = "\(domain) is a known malicious site. Access was prevented."
+            if reason.contains("cambia tu contrasena") {
+                // Retroactive investigation result — critical safety warning
+                content.title = "Sitio peligroso confirmado"
+                content.body = "\(domain) — \(reason)"
+            } else {
+                content.title = "Phishing link blocked"
+                content.body = "\(domain) is a known malicious site. Access was prevented."
+            }
         case .yellow:
             content.title = "Suspicious link detected"
             content.body = "\(domain) — \(reason). Proceed with caution."

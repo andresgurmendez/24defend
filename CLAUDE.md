@@ -43,6 +43,9 @@ At ingestion time, the backend downloads the Majestic Million top 100K popular d
 ### Smart notification suppression
 Only notify for domains containing a brand keyword. Generic blacklist blocks are silenced. Page resource window: suppress within 3s of a whitelist hit. Rate limit: max 1 per 5s. Principle: "silence is the default state." DNS blocking and telemetry are unaffected.
 
+### Pending investigations (retroactive warnings)
+When the ML classifier silently submits a domain, it's added to PendingInvestigation. A 30-second polling timer checks the API for results. If the backend confirms the domain is malicious, a retroactive notification is sent with force:true (bypasses all suppression): "Sitio peligroso confirmado — Si ingresaste datos personales, cambia tu contrasena." Domain is added to runtime blacklist for future blocking. Max 20 pending, expire after 10 minutes.
+
 ### Privacy
 Never record allowed/normal domains. Only blocked/warned domains in telemetry. Anonymous device UUID, not Apple ID.
 
