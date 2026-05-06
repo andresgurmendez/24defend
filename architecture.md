@@ -81,7 +81,7 @@ Anti-phishing link protection for mobile devices, targeting Latin America.
 | TwentyFourDefend | Application | Main app: dashboard, settings, block log |
 | TwentyFourDefendPacketTunnel | App Extension | NEPacketTunnelProvider DNS filter |
 
-Both targets share code in the `Shared/` directory (APIClient, BloomFilter, BloomFilterStore, BKTree, DomainChecker, BrandRuleEngine, BlockLog). The ML classifier (Layer 9) runs as a silent screener -- it submits suspicious domains to the API in the background but never shows user-facing warnings.
+Both targets share code in the `Shared/` directory (APIClient, BloomFilter, BloomFilterStore, BKTree, DomainChecker, BrandRuleEngine, BlockLog, PendingInvestigation, DailyBlacklist, TelemetryClient, PhishingClassifier, DNSCache). The ML classifier (Layer 7) runs as a silent screener -- it submits suspicious domains to the API in the background and tracks them via PendingInvestigation for retroactive notification if confirmed malicious.
 
 ### PacketTunnelProvider DNS Interception Flow
 
@@ -187,6 +187,7 @@ Layer 7: ML classifier (silent screener)
    |  SILENT: never shows user-facing warnings from ML model.
    |  If score >= 0.5 -> submit domain to API in background for investigation.
    |  No user warning, no DNS hold. Only brand rule engine warnings are user-facing.
+   |  Domain added to PendingInvestigation for retroactive notification polling.
    |
    |  If WARN from Layer 5 or 6: hold the DNS query and call backend API (Layer 8)
    v
@@ -198,6 +199,24 @@ Layer 8: Backend API call (POST /check)
    |  If backend returns "allow"/"warn" or is unreachable: ALLOW with yellow warning.
    v
 Done
+
+### Retroactive investigation notifications
+
+When the ML classifier silently submits a domain (Layer 7), the first user's DNS is
+forwarded — they see the page. The domain is added to PendingInvestigation, which polls
+POST /check every 30 seconds for up to 10 minutes.
+
+If the backend agent confirms the domain is malicious:
+- A forced push notification is sent: "Sitio peligroso confirmado — Si ingresaste
+  datos personales, cambia tu contrasena."
+- The domain is added to the runtime blacklist (blocked on any future visit)
+- Logged to the Alert Log and telemetry (layer: "investigation")
+
+This protects the "first user" — the one who visits a novel phishing domain before it
+appears in any blacklist. They receive a retroactive warning within ~30-60 seconds
+instead of never being notified.
+
+Max 20 pending investigations, entries expire after 10 minutes.
 ```
 
 ### BloomFilterStore
