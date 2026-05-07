@@ -1,5 +1,5 @@
 FROM --platform=linux/amd64 python:3.12-slim
-# Force rebuild: 2026-04-15-v4
+# Force rebuild: 2026-05-07-should-notify
 
 WORKDIR /app
 

@@ -43,10 +43,18 @@ IMPORTANT CONTEXT:
 - Phishing domains in this market typically: impersonate banks (BROU, Itaú, Santander), use similar-looking domains, are very new, and use free SSL certificates.
 - False positives are WORSE than false negatives. Only verdict "block" if you are confident. Use "warn" if suspicious but uncertain.
 
+RETROACTIVE NOTIFICATION:
+The user who visited this domain has already seen the page. If you determine it IS phishing, you can recommend sending them a retroactive warning notification (should_notify=true). This notification tells the user to change their password, so a FALSE notification is extremely damaging to our credibility. Only set should_notify=true when ALL of these are true:
+1. You are confident this is phishing (verdict=block, confidence >= 0.85)
+2. The domain impersonates a specific, identifiable brand (bank, service, etc.)
+3. The evidence is strong: multiple signals like new domain + free SSL + brand impersonation + no legitimate search results
+Do NOT notify for: ambiguous cases, domains that could be legitimate regional variants (e.g., santander-mx.com = real Santander Mexico), or domains where the brand match is weak.
+
 After investigation, respond with EXACTLY this JSON format (no other text):
 {
     "verdict": "block" | "warn" | "allow",
     "confidence": 0.0 to 1.0,
+    "should_notify": true | false,
     "reasoning": "2-3 sentence explanation of your decision"
 }
 """
@@ -179,6 +187,7 @@ def _parse_verdict(domain: str, content: str) -> DomainEntry:
             verdict=verdict,
             confidence=float(data.get("confidence", 0.5)),
             reason=data.get("reasoning", "Agent investigation completed"),
+            should_notify=bool(data.get("should_notify", False)),
             checked_at=datetime.now(timezone.utc),
             ttl=int(time()) + 30 * 86400,
         )

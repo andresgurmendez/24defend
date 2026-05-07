@@ -23,6 +23,7 @@ class DomainEntry(BaseModel):
     verdict: Verdict | None = None      # for cache entries
     confidence: float | None = None     # for cache entries
     reason: str | None = None           # human/agent-readable reason
+    should_notify: bool = False         # agent recommends retroactive user notification
     checked_at: datetime | None = None
     ttl: int | None = None              # DynamoDB TTL (epoch seconds)
 
@@ -37,6 +38,7 @@ class DomainCheckResponse(BaseModel):
     reason: str
     confidence: float
     source: str  # "blacklist", "whitelist", "cache", "agent"
+    should_notify: bool = False  # whether to send retroactive notification to user
 
 
 class BulkAddRequest(BaseModel):

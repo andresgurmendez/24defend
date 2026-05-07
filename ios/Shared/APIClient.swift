@@ -6,6 +6,12 @@ public struct CheckResponse: Codable {
     public let reason: String
     public let confidence: Double
     public let source: String    // "blacklist", "whitelist", "cache", "agent"
+    public let shouldNotify: Bool?  // agent recommends retroactive notification
+
+    enum CodingKeys: String, CodingKey {
+        case domain, verdict, reason, confidence, source
+        case shouldNotify = "should_notify"
+    }
 }
 
 public final class APIClient {

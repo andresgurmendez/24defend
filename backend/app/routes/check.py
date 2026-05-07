@@ -43,6 +43,7 @@ async def check_domain(req: DomainCheckRequest):
                 reason=entry.reason or "Known phishing domain",
                 confidence=1.0,
                 source="blacklist",
+                should_notify=True,  # threat intel confirmed — always notify
             )
 
         if entry.entry_type == EntryType.whitelist:
@@ -61,6 +62,7 @@ async def check_domain(req: DomainCheckRequest):
                 reason=entry.reason or "Previously investigated",
                 confidence=entry.confidence or 0.5,
                 source="cache",
+                should_notify=entry.should_notify,
             )
 
     # 2. Not found — investigate
@@ -72,4 +74,5 @@ async def check_domain(req: DomainCheckRequest):
         reason=result.reason or "Investigated by agent",
         confidence=result.confidence or 0.5,
         source="agent",
+        should_notify=result.should_notify,
     )

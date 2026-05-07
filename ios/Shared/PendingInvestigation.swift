@@ -51,14 +51,15 @@ public final class PendingInvestigation {
                 continue // API unreachable — keep pending
             }
 
-            if response.verdict == "block" && response.confidence >= 0.9 {
-                // Only alert for high-confidence blocks.
-                // Low-confidence agent verdicts may be wrong — don't scare the user.
+            if response.verdict == "block" && (response.shouldNotify ?? false) {
+                // Agent or blacklist explicitly recommends notifying the user.
+                // The agent only sets shouldNotify=true when confident AND
+                // the domain impersonates a specific brand with strong evidence.
                 confirmedThreats.append(entry.domain)
                 toRemove.append(entry.domain)
             } else if response.verdict == "block" {
-                // Low-confidence block — add to runtime blacklist silently
-                // but don't send a retroactive "your data may be stolen" notification
+                // Blocked but agent didn't recommend notification (ambiguous case).
+                // Domain will be caught by daily blacklist on next visit.
                 toRemove.append(entry.domain)
             } else if response.verdict == "allow" {
                 toRemove.append(entry.domain) // cleared
