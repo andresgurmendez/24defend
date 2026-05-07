@@ -206,11 +206,24 @@ When the ML classifier silently submits a domain (Layer 7), the first user's DNS
 forwarded — they see the page. The domain is added to PendingInvestigation, which polls
 POST /check every 30 seconds for up to 10 minutes.
 
-If the backend agent confirms the domain is malicious:
+The notification decision is controlled by the agent via a `should_notify` field in the
+/check response. The agent only sets `should_notify=true` when ALL of these are true:
+1. Confident the domain is phishing (verdict=block, confidence >= 0.85)
+2. The domain impersonates a specific, identifiable brand
+3. Multiple strong signals converge (new domain + free SSL + brand impersonation + no legitimate search results)
+
+Blacklist entries (confirmed by threat intelligence feeds) always set `should_notify=true`.
+
+If `should_notify=true`:
 - A forced push notification is sent: "Sitio peligroso confirmado — Si ingresaste
   datos personales, cambia tu contrasena."
 - The domain is added to the runtime blacklist (blocked on any future visit)
 - Logged to the Alert Log and telemetry (layer: "investigation")
+
+If verdict is block but `should_notify=false` (ambiguous case, e.g., santander-mx.com
+is legitimate Santander Mexico but flagged by heuristics):
+- Domain removed from pending queue
+- Will be caught by daily blacklist on next visit after more evidence accumulates
 
 This protects the "first user" — the one who visits a novel phishing domain before it
 appears in any blacklist. They receive a retroactive warning within ~30-60 seconds
@@ -411,9 +424,9 @@ The agent loops: call LLM -> if LLM requests tool calls, execute them -> feed re
 | `dns_lookup` | Domain age, registrar, nameservers via RDAP | rdap.org (free, no API key) |
 | `ssl_certificate_check` | Certificate issuer, age, SANs, validity | Direct TLS connection |
 | `google_search` | Web presence check via Serper API | google.serper.dev (requires API key) |
-| `safe_browsing_check` | Google Safe Browsing status | transparencyreport.google.com |
+| `safe_browsing_check` | Google Safe Browsing status | Safe Browsing Lookup API v4 (requires `DEFEND_SAFE_BROWSING_API_KEY`; gracefully degrades without key) |
 
-**Output format**: JSON with `verdict` (block/warn/allow), `confidence` (0.0-1.0), and `reasoning`.
+**Output format**: JSON with `verdict` (block/warn/allow), `confidence` (0.0-1.0), `should_notify` (boolean — whether to send retroactive notification to user), and `reasoning`.
 
 **Caching**: Results cached in DynamoDB as `entry_type=cache` with TTL:
 - Normal verdicts: 30 days

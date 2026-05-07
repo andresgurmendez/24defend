@@ -215,27 +215,37 @@ The domain is already being resolved via DNS — we're not adding new data expos
 
 ## 6. Notification improvements
 
-### 6a. Actionable notification buttons
+### 6a. Actionable notification buttons -- PARTIALLY IMPLEMENTED (May 6, 2026)
 
 ```
 [Phishing link blocked]
 brou-seguro.xyz is a known malicious site.
 
-[View Details]  [Not phishing?]  [Share]
+[Ver detalles]  [Compartir]
 ```
 
-- "View Details" → opens app to block detail screen (already implemented)
-- "Not phishing?" → reports false positive (new)
-- "Share" → WhatsApp share with pre-written message (viral loop from the doc)
+- "Ver detalles" → opens app to block detail screen (IMPLEMENTED)
+- "Compartir" → opens share sheet with pre-written message (IMPLEMENTED)
+- "Not phishing?" → reports false positive (NOT YET — see section 2a)
 
-### 6b. Share button (viral growth)
+### 6b. Share button (viral growth) -- IMPLEMENTED (May 6, 2026)
 
-From the block detail screen or notification:
+From the block detail screen and notification actions:
 
 ```
-"24Defend just blocked a phishing link impersonating [BRAND]. 
-Download the free app to protect yourself: https://24defend.com/download"
+"24Defend bloqueo un intento de fraude en mi celular. El enlace brou-seguro . com 
+se hacia pasar por BROU para robar datos de acceso.
+Si recibis un mensaje con este tipo de enlaces, no lo abras. Podes proteger tu celular con 24Defend:
+https://www.24defend.com/?ref=share&brand=brou"
 ```
+
+Features:
+- Brand-aware messages: detects impersonated brand and personalizes share text
+- Non-clickable domain (spaces around dots) to prevent accidental visits
+- Professional tone (not informal/casual)
+- Referral tracking via URL parameters (?ref=share&brand=...)
+- Auto-share when coming from notification "Compartir" action
+- Generic fallback message when no brand is detected
 
 The doc identifies this as the #1 growth mechanism. Each block event is a potential
 viral share to 30+ people in a WhatsApp group.
@@ -337,17 +347,45 @@ Or: only flag if brand + phishing_word, not brand alone.
 
 ---
 
+---
+
+## 11. Agent investigation quality (May 7, 2026)
+
+**Problem discovered**: CDN and ad-tech domains (cloudflare.net CNAMEs, ltmsphrcl.net, adzonestatic.com) were being confirmed as fraudulent by the investigation agent.
+
+**Root causes**:
+1. **Safe Browsing tool was broken**: Google Transparency Report API returns CAPTCHA 302 redirects from server IPs. The tool never saw "No unsafe content found" in the response, so it reported "MAY be flagged" for ALL domains. The agent treated this as positive evidence.
+2. **Agent lacks ad-tech context**: Obfuscated domain names (ltmsphrcl.net = Lotame, adnxs.com = Xandr) look suspicious to a security analyst but are legitimate ad infrastructure.
+3. **cloudflare.net missing from iOS infra set**: Only cloudflare.com was listed. CNAME chains (*.cdn.cloudflare.net) bypassed the filter.
+
+**Fixes**:
+1. Replaced Safe Browsing tool with Lookup API v4 (requires `DEFEND_SAFE_BROWSING_API_KEY`). Without key, explicitly tells agent "do NOT treat as a flag."
+2. Agent system prompt now includes ad-tech/CDN infrastructure guidance.
+3. Added cloudflare.net + 15 ad-tech domains to iOS infrastructure allowlist.
+
+---
+
+## 12. Agent-controlled retroactive notifications (May 7, 2026)
+
+**Problem**: Hardcoded thresholds for retroactive notifications (confidence >= 0.9, then source == "blacklist") were either too aggressive (santander-mx.com = legit Santander Mexico at 0.96 confidence) or too conservative (waiting for threat intel feeds defeats "first user" protection).
+
+**Fix**: Agent now returns `should_notify` boolean in its verdict. The agent has full investigation context (SSL, WHOIS, search results, brand signals) and only recommends notification when confident AND the domain impersonates a specific brand with strong evidence. Blacklist entries always notify (threat intel confirmed).
+
+---
+
 ## Priority order
 
 1. ~~**Multi-layer bloom confirmation** (2b) — DONE: local FP list + API confirmation~~
 2. ~~**Shared infrastructure filtering** (10) — DONE: Majestic Million top 100K filtering at ingestion (hardcoded 43-domain fallback)~~
 3. ~~**Notification suppression** (6c partial) — DONE: brand keyword filter + rate limit + page resource window~~
-4. **False positive reporting** (2a) — users need a way to tell us when we're wrong
-5. **Device telemetry** (4a) — we're flying blind without data from real devices
-6. **Notification buttons** (6a) — "Not phishing?" + "Share" are high-impact UX
-7. ~~**Infrastructure allowlist expansion** (2c) — DONE: Majestic Million top 100K replaces manual curation~~
-8. **Chained bloom filters or xor filter** (3) — eliminates bloom FPs structurally (less urgent now with API confirmation)
-9. **Active learning pipeline** (5) — real data improves the model
-10. **In-app stats** (4b) — builds user trust and engagement
-11. **Share viral loop** (6b) — growth mechanism from the doc
-12. **Regional expansion** (9) — after UY is stable
+4. ~~**Share viral loop** (6b) — DONE: brand-aware share messages, notification action, referral tracking~~
+5. ~~**Notification buttons** (6a partial) — DONE: "Ver detalles" + "Compartir" actions. Missing: "Not phishing?" report~~
+6. ~~**Infrastructure allowlist expansion** (2c) — DONE: Majestic Million + cloudflare.net + ad-tech domains~~
+7. ~~**Agent investigation quality** (11) — DONE: fixed Safe Browsing tool, ad-tech prompt, should_notify~~
+8. **False positive reporting** (2a) — users need a way to tell us when we're wrong
+9. **Device telemetry** (4a) — we're flying blind without data from real devices
+10. **ML model retraining** (8a) — synthetic data causes FPs (digit_count dominates); needs real-world data
+11. **Chained bloom filters or xor filter** (3) — eliminates bloom FPs structurally (less urgent now with API confirmation)
+12. **Active learning pipeline** (5) — real data improves the model
+13. **In-app stats** (4b) — builds user trust and engagement
+14. **Regional expansion** (9) — after UY is stable

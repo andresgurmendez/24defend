@@ -1,6 +1,69 @@
 # 24Defend — Development Summary
 
-Built April 12-21, 2026. 38 commits, from zero to production-deployed MVP.
+Built April 12-21, 2026. 50+ commits, from zero to production-deployed MVP.
+
+---
+
+## May 7, 2026 -- Agent-controlled retroactive notifications, CDN/ad-tech false positive fixes
+
+### Agent-controlled retroactive notifications (should_notify)
+- Previously: PendingInvestigation used hardcoded thresholds (confidence >= 0.9, then source == "blacklist") to decide whether to send retroactive notifications
+- Now: the agent explicitly returns a `should_notify` boolean in its verdict, based on full investigation context (SSL, WHOIS, search results, brand impersonation signals)
+- Agent prompt instructs: only set should_notify=true when confidence >= 0.85, domain impersonates a specific brand, AND multiple strong signals converge
+- Blacklist entries (threat intel confirmed) always set should_notify=true
+- Prevents false notifications like santander-mx.com (legitimate Santander Mexico) while still protecting first users visiting novel phishing domains
+- Changes span backend (models, agent prompt, /check endpoint) and iOS (CheckResponse, PendingInvestigation)
+
+### Fixed broken Safe Browsing tool (100% false positive rate)
+- The `safe_browsing_check` tool was hitting the Google Transparency Report web API, which returns 302 redirects to CAPTCHA pages from server IPs
+- Since the HTML response never contained "No unsafe content found", the tool reported "MAY be flagged" for EVERY domain
+- The agent treated this as evidence to block domains — this was the root cause of CDN/ad-tech domains being confirmed as fraudulent
+- Replaced with Safe Browsing Lookup API v4 (proper API). Without an API key, explicitly tells the agent "do NOT treat this as a flag"
+- New config: `DEFEND_SAFE_BROWSING_API_KEY` (optional)
+
+### Fixed cloudflare.net missing from infrastructure allowlist
+- `cloudflare.net` was missing from the infrastructure Set — only `cloudflare.com` was listed
+- All CNAME chains like `*.cdn.cloudflare.net` extract to base domain `cloudflare.net`, which bypassed the filter
+- Added `cloudflare.net`, `jsdelivr.net`, `cdnjs.com`, `unpkg.com` to CDN section
+
+### Expanded ad-tech infrastructure allowlist
+- Added common ad/tracking domains that were being flagged: `adzonestatic.com`, `ltmsphrcl.net` (Lotame), `adnxs.com` (Xandr/AppNexus), `adsrvr.org`, `demdex.net` (Adobe), `omtrdc.net` (Adobe), `scorecardresearch.com`, `taboola.com`, `outbrain.com`, `criteo.com`, `rubiconproject.com`, `pubmatic.com`, `openx.net`, `moatads.com`, `serving-sys.com`
+
+### Agent prompt improvements for ad-tech/CDN awareness
+- Added explicit section in agent system prompt explaining CDN CNAME chains are legitimate endpoints, not impersonation
+- Explains that obfuscated/abbreviated names are normal in ad-tech (ltmsphrcl.net = Lotame, adnxs.com = Xandr)
+- Safe Browsing flags on ad-tech domains are common false positives — do not treat as definitive
+- Softened "non-brand = infrastructure" to a more nuanced "non-brand = less likely phishing, weigh other signals"
+
+### Cleared bad DynamoDB cache entries
+- Deleted 5 incorrect agent verdicts from DynamoDB cache: cdn.thinkindot.com.cdn.cloudflare.net, c.ltmsphrcl.net, s1.adzonestatic.com, cdn.jsdelivr.net.cdn.cloudflare.net, api.id.thinkindot.com.cdn.cloudflare.net
+
+---
+
+## May 6, 2026 -- Reward/loyalty scam detection, share improvements, 24defend.com FP fix
+
+### Reward/loyalty scam vocabulary
+- oca.puntos.st (phishing site impersonating OCA loyalty points) was not detected
+- Added 13 reward/loyalty scam words to BrandRuleEngine, ML features, and backend heuristics: puntos, premio, ganaste, sorteo, regalo, beneficio, promocion, oferta, descuento, cupon, recompensa, canje, redimir
+- Also added high-risk TLDs common in these scams: .st, .su, .ga, .ws, .to, .me
+
+### Share button improvements
+- Changed share label from "Avisar a familiares" to "Compartir con amigos y familia" (broader audience)
+- Share message includes the blocked domain (with spaces around dots to prevent clickability)
+- Professional tone — "24Defend bloqueo un intento de fraude en mi celular" instead of informal language
+- Brand-aware messages: detects impersonated brand and personalizes the share text
+- Auto-share when coming from notification "Compartir" action
+- Referral tracking via URL parameters (?ref=share&brand=...)
+
+### Fixed 24defend.com flagged as phishing
+- ML classifier scored 24defend.com at 1.0 (maximum phishing score) due to "24" digits in the domain name (digit_count feature has coefficient 8.72, dominating the model)
+- Added 24defend.com to the infrastructure allowlist in DomainChecker.swift
+- Acknowledged as symptom of synthetic training data — model needs retraining with real-world data (V2)
+
+### Retroactive investigation threshold changes
+- Changed from confidence >= 0.9 to source == "blacklist" (later replaced by should_notify on May 7)
+- Found santander-mx.com (legitimate Santander Mexico) was getting 0.96 confidence from the agent
+- A false "cambia tu contrasena" notification for a legitimate site would destroy user trust
 
 ---
 
@@ -171,6 +234,10 @@ When the user visits any website, the DNS query goes through these layers in ord
 6. **Blacklist ingestion**: 28K per-domain DynamoDB lookups took minutes, causing startup timeout
 7. **Bloom filter API key**: iOS used wrong API key for bloom filter download (dev vs production)
 8. **Infrastructure domains**: bloom filter check ran before infrastructure allowlist
+9. **24defend.com flagged as phishing**: ML classifier scored 1.0 due to "24" digits (digit_count coefficient 8.72 dominates the model). Fixed by adding to infrastructure allowlist.
+10. **Safe Browsing tool 100% FP rate**: Google Transparency Report API returns CAPTCHA redirects from servers. Tool reported "MAY be flagged" for every domain. Agent used this as evidence to block CDN/ad-tech domains.
+11. **cloudflare.net missing from infra set**: Only cloudflare.com was listed. All CNAME chains (*.cdn.cloudflare.net) bypassed the filter.
+12. **santander-mx.com false notification**: Agent scored 0.96 confidence for legitimate Santander Mexico domain. Fixed by delegating notification decisions to the agent with strict criteria.
 
 ---
 
