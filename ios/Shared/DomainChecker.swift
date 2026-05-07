@@ -160,6 +160,8 @@ public final class DomainChecker {
         // Uruguay common
         "elobservador.com.uy", "elpais.com.uy", "montevideo.com.uy",
         "subrayado.com.uy", "lr21.com.uy",
+        // Our own domain
+        "24defend.com",
     ]
 
     public static func isInfrastructureDomain(_ domain: String) -> Bool {
