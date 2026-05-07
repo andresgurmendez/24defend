@@ -51,8 +51,14 @@ public final class PendingInvestigation {
                 continue // API unreachable — keep pending
             }
 
-            if response.verdict == "block" {
+            if response.verdict == "block" && response.confidence >= 0.9 {
+                // Only alert for high-confidence blocks.
+                // Low-confidence agent verdicts may be wrong — don't scare the user.
                 confirmedThreats.append(entry.domain)
+                toRemove.append(entry.domain)
+            } else if response.verdict == "block" {
+                // Low-confidence block — add to runtime blacklist silently
+                // but don't send a retroactive "your data may be stolen" notification
                 toRemove.append(entry.domain)
             } else if response.verdict == "allow" {
                 toRemove.append(entry.domain) // cleared
