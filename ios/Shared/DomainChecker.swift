@@ -118,8 +118,9 @@ public final class DomainChecker {
     private static let infrastructureSet: Set<String> = [
         // CDNs
         "akamaiedge.net", "akamai.net", "akadns.net", "akamaized.net",
-        "cloudfront.net", "cloudflare.com", "fastly.net", "edgekey.net",
-        "edgesuite.net", "llnwd.net", "footprint.net",
+        "cloudfront.net", "cloudflare.com", "cloudflare.net", "fastly.net",
+        "edgekey.net", "edgesuite.net", "llnwd.net", "footprint.net",
+        "jsdelivr.net", "cdnjs.com", "unpkg.com",
         // Apple
         "apple.com", "apple-dns.net", "icloud.com", "mzstatic.com",
         "aaplimg.com", "cdn-apple.com", "apple-cloudkit.com",
@@ -141,6 +142,10 @@ public final class DomainChecker {
         "app-measurement.com", "sentry.io", "bugsnag.com",
         "newrelic.com", "datadoghq.com", "segment.io", "mixpanel.com",
         "amplitude.com", "hotjar.com", "clarity.ms",
+        "adzonestatic.com", "ltmsphrcl.net", "adnxs.com",
+        "adsrvr.org", "demdex.net", "omtrdc.net", "scorecardresearch.com",
+        "taboola.com", "outbrain.com", "criteo.com", "rubiconproject.com",
+        "pubmatic.com", "openx.net", "moatads.com", "serving-sys.com",
         // Social / messaging
         "twitter.com", "x.com", "tiktok.com", "snapchat.com",
         "linkedin.com", "pinterest.com", "reddit.com", "discord.com",
