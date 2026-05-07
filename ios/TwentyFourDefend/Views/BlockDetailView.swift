@@ -23,21 +23,28 @@ struct BlockDetailView: View {
         return brandNames.first { d.contains($0.keyword) }?.display
     }
 
+    /// Make domain non-clickable by inserting spaces around dots
+    private var safeDomain: String {
+        domain.replacingOccurrences(of: ".", with: " . ")
+    }
+
     private var shareMessage: String {
         if let brand = detectedBrand {
             return """
-            Acabo de bloquear un intento de fraude en mi celular. \
-            Era un link falso que se hacia pasar por \(brand) para robar datos. \
-            24Defend lo detecto y bloqueo automaticamente antes de que pudiera abrirlo.\n\n\
-            Si te llega algo parecido, esta app te puede proteger:\n\
+            Ojo: acabo de recibir un link falso que se hacia pasar por \(brand). El link era: \(safeDomain)
+
+            La app 24Defend lo detecto y bloqueo automaticamente antes de que pudiera abrirlo. Si te llega algo parecido, no lo abras.
+
+            Podes proteger tu celular gratis:
             https://www.24defend.com/?ref=share&brand=\(brand.lowercased())
             """
         } else {
             return """
-            Acabo de bloquear un intento de fraude en mi celular. \
-            24Defend detecto un link peligroso y lo bloqueo automaticamente \
-            antes de que pudiera abrirlo.\n\n\
-            Si te llega algun link sospechoso, esta app te puede proteger:\n\
+            Ojo: acabo de recibir un link peligroso en mi celular. El link era: \(safeDomain)
+
+            La app 24Defend lo detecto y bloqueo automaticamente. Si te llega algo sospechoso, no lo abras.
+
+            Podes proteger tu celular gratis:
             https://www.24defend.com/?ref=share
             """
         }
@@ -110,7 +117,7 @@ struct BlockDetailView: View {
             } label: {
                 HStack {
                     Image(systemName: "square.and.arrow.up")
-                    Text("Avisar a familiares")
+                    Text("Compartir con amigos y familia")
                 }
                 .font(.headline)
                 .frame(maxWidth: .infinity)

@@ -54,7 +54,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     private func registerNotificationActions() {
         let shareAction = UNNotificationAction(
             identifier: "SHARE_ACTION",
-            title: "Avisar a familiares",
+            title: "Compartir",
             options: [.foreground]
         )
         let detailAction = UNNotificationAction(
