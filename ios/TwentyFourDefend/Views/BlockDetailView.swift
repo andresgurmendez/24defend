@@ -31,20 +31,16 @@ struct BlockDetailView: View {
     private var shareMessage: String {
         if let brand = detectedBrand {
             return """
-            Ojo: acabo de recibir un link falso que se hacia pasar por \(brand). El link era: \(safeDomain)
+            24Defend bloqueo un intento de fraude en mi celular. El enlace \(safeDomain) se hacia pasar por \(brand) para robar datos de acceso.
 
-            La app 24Defend lo detecto y bloqueo automaticamente antes de que pudiera abrirlo. Si te llega algo parecido, no lo abras.
-
-            Podes proteger tu celular gratis:
+            Si recibis un mensaje con este tipo de enlaces, no lo abras. Podes proteger tu celular con 24Defend:
             https://www.24defend.com/?ref=share&brand=\(brand.lowercased())
             """
         } else {
             return """
-            Ojo: acabo de recibir un link peligroso en mi celular. El link era: \(safeDomain)
+            24Defend detecto y bloqueo un enlace fraudulento en mi celular: \(safeDomain)
 
-            La app 24Defend lo detecto y bloqueo automaticamente. Si te llega algo sospechoso, no lo abras.
-
-            Podes proteger tu celular gratis:
+            Si recibis un mensaje con enlaces sospechosos, no los abras. Podes proteger tu celular con 24Defend:
             https://www.24defend.com/?ref=share
             """
         }
