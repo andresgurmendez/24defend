@@ -211,25 +211,41 @@ def google_search(query: str) -> str:
 @tool
 def safe_browsing_check(domain: str) -> str:
     """Check if a domain is flagged in Google Safe Browsing database.
-    This is a definitive signal — if flagged, the domain is known malicious."""
+    Note: this check is best-effort. A negative result is reliable, but
+    inconclusive results should NOT be treated as a positive flag."""
 
-    # Using the free lookup via transparencyreport
+    # The Transparency Report web API blocks server requests with CAPTCHAs.
+    # Use the Safe Browsing Lookup API v4 if we have a key, otherwise skip.
+    if not settings.safe_browsing_api_key:
+        return f"Google Safe Browsing: check unavailable (no API key configured). Do NOT treat this as a flag — assume clean unless other signals are strong."
+
     try:
         with httpx.Client(timeout=10) as client:
-            resp = client.get(
-                f"https://transparencyreport.google.com/transparencyreport/api/v3/safebrowsing/status",
-                params={"site": domain},
+            resp = client.post(
+                f"https://safebrowsing.googleapis.com/v4/threatMatches:find",
+                params={"key": settings.safe_browsing_api_key},
+                json={
+                    "client": {"clientId": "24defend", "clientVersion": "1.0"},
+                    "threatInfo": {
+                        "threatTypes": ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE"],
+                        "platformTypes": ["ANY_PLATFORM"],
+                        "threatEntryTypes": ["URL"],
+                        "threatEntries": [{"url": f"https://{domain}/"}],
+                    },
+                },
             )
             if resp.status_code == 200:
-                body = resp.text
-                if "No unsafe content found" in body or "no data" in body.lower():
-                    return f"Google Safe Browsing: {domain} is NOT flagged. No known threats."
+                data = resp.json()
+                matches = data.get("matches", [])
+                if matches:
+                    threats = [m.get("threatType", "UNKNOWN") for m in matches]
+                    return f"Google Safe Browsing: {domain} IS FLAGGED. Threats: {', '.join(threats)}"
                 else:
-                    return f"Google Safe Browsing: {domain} MAY be flagged. Raw response: {body[:500]}"
+                    return f"Google Safe Browsing: {domain} is NOT flagged. No known threats."
             else:
-                return f"Safe Browsing check returned HTTP {resp.status_code}. Unable to determine status."
+                return f"Safe Browsing API returned HTTP {resp.status_code}. Unable to determine status — do NOT treat as a flag."
     except Exception as e:
-        return f"Safe Browsing check error: {e}"
+        return f"Safe Browsing check error: {e}. Do NOT treat as a flag."
 
 
 @tool

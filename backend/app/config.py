@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     # Serper (Google search API)
     serper_api_key: str | None = None
 
+    # Google Safe Browsing API v4
+    safe_browsing_api_key: str | None = None
+
     # Environment
     env: str = "dev"  # "dev" | "prod"
 
