@@ -291,12 +291,35 @@ When the user visits any website, the DNS query goes through these layers in ord
 
 | Service | Account | Notes |
 |---------|---------|-------|
-| Apple Developer | Maximo Gurmendez (Individual) | 24Defend Apple ID, $99/year |
+| Apple Developer | Maximo Gurmendez (Individual) | 24Defend Apple ID, $99/year — conversion to Organization (TONLER S.A.S.) pending; wait until ~28 May 2026 for Apple to sync D-U-N-S from D&B |
 | AWS (dev) | 081856108753 | IAM user keys in aws.sh |
 | GitHub | andresgurmendez/24defend | SSH key: ~/.ssh/id_24defend |
-| GoDaddy | 24defend.com | DNS: api CNAME → ALB, www CNAME → CloudFront |
+| GoDaddy | 24defend.com | DNS: api CNAME → ALB, www CNAME → CloudFront. WHOIS registrant: TONLER S.A.S. |
 | Serper | dev@24defend.com | API key in serper.conf |
-| Domain | 24defend.com | Registered via GoDaddy |
+| Domain | 24defend.com | Registered via GoDaddy, expires 2027-04-12 |
+
+## Legal entity
+
+**TONLER S.A.S.** is the Uruguayan legal entity that operates 24Defend.
+
+| Field | Value |
+|-------|-------|
+| **D-U-N-S Number** | **81-335-4968** (assigned 18 May 2026 by CIAL D&B Uruguay) |
+| Legal name | TONLER S.A.S. |
+| Tradestyle (D&B) | 24Defend |
+| Legal form (D&B) | Corporation |
+| RUT (Uruguay tax ID) | 220621480018 |
+| RNC inscription | 19364 (13 Nov 2025) |
+| BPS employer N° | 9042861 |
+| Registered office | Miguel Barreiro 3236, Apto. 602, Montevideo 11300, Uruguay |
+| Activity (CIIU) | 62010 — Computer programming activities |
+| Fiscal year end | December 31 |
+| Corporate email | maximo@24defend.com |
+| Phone | +598 94 416 569 |
+| Directors | Macarena Rodríguez Tobler (President, CI 2.814.060-0) · Máximo Gurméndez (Vice-President, CI 3.588.055-4) |
+| Shareholders | Same as directors, 50% / 50% |
+| Constitution | 4 Nov 2025 under Law 19.820 (SAS). Operational activity started 7 May 2026 (shell company acquired and reoriented to software). |
+| D&B contact | Nicolas Fons — nicolas.fons@cialdnb.com |
 
 ---
 
