@@ -1,6 +1,19 @@
-# /deploy — Deploy 24Defend backend to AWS
+# /deploy — Full CDK deploy (infrastructure + code)
 
-Deploy the backend to AWS using CDK. Supports dev and prod environments.
+Deploy the backend to AWS using CDK. Use this when infrastructure changes
+(new IAM role, secret, env var, ALB rule, etc.). For code-only changes use
+`/deploy-backend-fast` which is much faster.
+
+## ⚠️ When NOT to use this
+
+If you only changed Python code (no infra changes), use `/deploy-backend-fast`
+instead — it skips the CDK synth (~2 min savings) and force-redeploys the
+ECS service after pushing a new image to ECR.
+
+**GitHub Actions CI is broken** (missing `AWS_DEPLOY_ROLE_ARN` secret).
+The `Deploy 24Defend Backend` workflow fails at "Configure AWS credentials".
+Do NOT rely on `git push` triggering an automatic deploy — run this skill
+or `/deploy-backend-fast` manually.
 
 ## Usage
 
