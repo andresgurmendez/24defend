@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Local AWS credentials for the 24Defend dev account.
+# Copy this file to `aws.sh`, fill in your own credentials, and source it
+# before running any AWS-related command:
+#
+#     cp aws.sh.example aws.sh
+#     chmod +x aws.sh
+#     source aws.sh
+#     aws sts get-caller-identity   # verify
+#
+# NEVER COMMIT `aws.sh` — it is gitignored. Treat the credentials as secrets.
+# If you accidentally commit it, rotate the keys immediately.
+#
+# How to get these values, rotation policy, and security guidelines:
+#   see docs/aws-keys.md
+
+# --- Option A: Static IAM user keys (long-lived) ---
+# Default for the shared dev account (081856108753, IAM user bedrock24defend).
+# Issued by the founder / tech lead; rotate manually every 90 days.
+export AWS_ACCESS_KEY_ID="<your-access-key-id>"
+export AWS_SECRET_ACCESS_KEY="<your-secret-access-key>"
+unset AWS_SESSION_TOKEN
+
+# --- Option B: SSO / STS temporary credentials (short-lived) ---
+# Used when assuming a role via aws sso login. The session token expires
+# (~12h). Uncomment and replace Option A above if you operate via SSO.
+# Required for prod once the prod account is wired to SSO.
+#
+# export AWS_ACCESS_KEY_ID="<temporary-access-key>"
+# export AWS_SECRET_ACCESS_KEY="<temporary-secret>"
+# export AWS_SESSION_TOKEN="<temporary-session-token>"
+
+# All AWS resources live in us-east-1. Do not change without coordinating
+# with the tech lead — CDK stacks, ECR repos, Bedrock model IDs are pinned.
+export AWS_DEFAULT_REGION="us-east-1"
