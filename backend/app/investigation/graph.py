@@ -134,33 +134,55 @@ def _call_model(state: AgentState) -> dict:
 
 
 def _format_verdict(state: AgentState) -> dict:
-    """Extract a validated verdict via Bedrock structured output."""
+    """Extract a validated verdict via Bedrock structured output.
+
+    Sonnet ignores in-prompt "output in Spanish" instructions when producing
+    tool-schema fields (empirical — three iterations of prompt tuning failed).
+    So we let it produce the reasoning in English (its natural mode), then
+    translate the reasoning field via a second cheap Bedrock call. Adds
+    ~1-2s to cold-cache lookups but is 100% reliable.
+    """
     llm = _create_verdict_llm()
     prompt = state["messages"] + [
         HumanMessage(
             content=(
-                "Produce the final structured verdict.\n\n"
-                "=== reasoning field: MUST BE IN SPANISH ===\n"
-                "This is non-negotiable. The reasoning field appears verbatim in a "
-                "Spanish-language mobile app used in Uruguay. English reasoning is "
-                "a bug — reject it and re-write in Spanish.\n\n"
-                "Style: 1-2 short sentences, Uruguayan register ('podés', 'te', "
-                "'ingresaste', 'se hace pasar por'). No technical jargon.\n\n"
-                "GOOD example (write like this):\n"
-                "  'Sitio falso que se hace pasar por OCA usando el gancho de "
-                "'premios'. No tiene certificado seguro y usa un TLD .hk sin "
-                "relación con Uruguay.'\n\n"
-                "BAD example (do NOT write like this):\n"
-                "  'This domain impersonates OCA using a prize lure. No SSL, .hk "
-                "TLD.' ← English = wrong.\n\n"
-                "=== should_notify ===\n"
-                "true only when verdict=block AND confidence>=0.85 AND the domain "
-                "clearly impersonates a specific brand."
+                "Produce the final structured verdict. Reasoning should be 1-2 "
+                "short sentences (English is fine — it will be translated). "
+                "Set should_notify=true only when verdict=block AND "
+                "confidence>=0.85 AND the domain clearly impersonates a "
+                "specific brand."
             )
         )
     ]
     verdict: AgentVerdict = llm.invoke(prompt)
+    verdict.reasoning = _translate_reasoning_to_spanish(verdict.reasoning)
     return {"verdict": verdict}
+
+
+def _translate_reasoning_to_spanish(english: str) -> str:
+    """Translate the agent's reasoning to conversational Uruguayan Spanish.
+
+    Falls back to the original English on any error — better to show English
+    than to fail the whole verdict.
+    """
+    try:
+        llm = _base_llm()
+        response = llm.invoke([
+            SystemMessage(content=(
+                "You translate short cybersecurity explanations from English "
+                "to conversational Uruguayan Spanish. Use voseo ('podés', "
+                "'ingresaste'). Keep it 1-2 short sentences. Avoid technical "
+                "jargon: prefer 'sitio falso' over 'phishing site', 'no tiene "
+                "certificado seguro' over 'no SSL'. Return ONLY the Spanish "
+                "translation, no preamble."
+            )),
+            HumanMessage(content=english),
+        ])
+        translated = response.content.strip() if isinstance(response.content, str) else str(response.content).strip()
+        return translated or english
+    except Exception as e:
+        logger.warning(f"Translation failed, keeping English: {e}")
+        return english
 
 
 def build_graph() -> StateGraph:
