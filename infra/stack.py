@@ -18,7 +18,6 @@ from aws_cdk import (
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
     aws_logs as logs,
-    aws_ecr_assets,
     aws_certificatemanager as acm,
     aws_elasticloadbalancingv2 as elbv2,
 )
@@ -274,7 +273,13 @@ class DefendStack(Stack):
                 subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS,
             ),
             task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
-                image=ecs.ContainerImage.from_asset("../backend", platform=cdk.aws_ecr_assets.Platform.LINUX_AMD64),
+                # Pull from the defend-<env>-backend ECR repo (populated by
+                # deploy-backend-fast or the deploy.yml workflow). Previously this
+                # was from_asset which built into CDK's asset repo — meaning the
+                # explicitly-declared ecr_repo above was a stranded resource and
+                # every /deploy-backend-fast push was a no-op. from_ecr_repository
+                # also implicitly grants pull permission to the task exec role.
+                image=ecs.ContainerImage.from_ecr_repository(ecr_repo, tag="latest"),
                 container_port=8080,
                 task_role=task_role,
                 environment={
