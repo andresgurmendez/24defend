@@ -44,7 +44,9 @@ Known CDN/platform domains skip all detection (`DomainChecker.isInfrastructureDo
 Never block on bloom filter alone. On a bloom hit: check local FP list first (instant), then confirm with backend API (DynamoDB lookup, ~50ms). FPs are distributed via GET /daily-false-positives endpoint (public, no auth, polled every 30 min).
 
 ### ML classifier is silent
-Never show user-facing warnings from ML model. Submit suspicious domains to API in background. Only brand rule engine warnings are user-facing.
+Never show user-facing warnings from ML model — it has a high FP rate (observed: 100% "phishing probability" on Salesforce/DataXu HDFS subdomains). Submit suspicious domains to API in background. Only brand rule engine warnings are user-facing.
+
+**Gap to be aware of:** if a real phishing domain misses the brand-rule threshold (`isHighRisk`, score >= 0.7) but is caught by ML, the user gets no yellow at browse time and only a RED retroactive notification after the agent confirms. The right response is to tighten brand-rule signals (add missing brand keywords, TLDs, or phishing vocabulary) so the domain crosses the brand-rule threshold — not to loosen ML gating. See `ios/Shared/BrandRuleEngine.swift` for the scoring function.
 
 ### Signed modulo
 Swift bloom filter uses Python-style signed int32 modulo (pythonMod function). Never use unsigned modulo for bloom filter lookups.
@@ -53,19 +55,27 @@ Swift bloom filter uses Python-style signed int32 modulo (pythonMod function). N
 At ingestion time, the backend downloads the Majestic Million top 100K popular domains and filters out any blacklist domain whose base domain appears in that list. Located in `backend/app/ingestion/runner.py`. The hardcoded `SHARED_INFRASTRUCTURE_DOMAINS` set (43 domains) is a fallback if the download fails.
 
 ### Smart notification suppression
-Only notify for domains containing a brand keyword. Generic blacklist blocks are silenced. Page resource window: suppress within 3s of a whitelist hit. Rate limit: max 1 per 5s. Principle: "silence is the default state." DNS blocking and telemetry are unaffected.
+Only notify for domains containing a brand keyword. Generic blacklist blocks are silenced. Page resource window: suppress within 3s of a whitelist hit. Rate limit: max 1 per 5s (skipped for forced red escalations). **Session dedup by BASE DOMAIN**: one yellow + one red per eTLD+1 per session (`sorteo.brou.hk` and `www.sorteo.brou.hk` share `brou.hk` so the user gets 1 yellow + 1 red, not 4). Red escalation is still allowed once even after yellow already fired. State: `yellowNotified`/`redNotified` sets in `PacketTunnelProvider`. Principle: "silence is the default state." DNS blocking and telemetry are unaffected.
 
 ### Pending investigations (retroactive warnings) — agent-controlled
-When the ML classifier silently submits a domain, it's added to PendingInvestigation. A 30-second polling timer checks the API for results. The decision to send a retroactive notification is **owned by the agent** — `/check` returns `should_notify: bool` in its response, and the iOS app respects that field (`ios/Shared/PendingInvestigation.swift`). Blacklist hits always set `should_notify=true`; agent verdicts set it true only when confident (>=0.85) AND the domain impersonates a specific brand AND multiple strong signals converge (see `backend/app/investigation/graph.py` system prompt). When `should_notify=true`: forced notification "Sitio peligroso confirmado — cambia tu contrasena" + add to runtime blacklist. Max 20 pending, expire after 10 minutes.
+When the ML classifier silently submits a domain OR the brand rule engine fires a yellow warning, the domain is added to `PendingInvestigation` and a fire-and-forget backend `/check` is spawned. DNS is forwarded immediately — the user is NEVER stalled waiting for the agent. A 30-second polling timer checks the API for results. The decision to send a retroactive notification is **owned by the agent** — `/check` returns `should_notify: bool`, and iOS respects it (`ios/Shared/PendingInvestigation.swift`). Blacklist hits always `should_notify=true`; agent verdicts set it true only when confident (>=0.85) AND the domain impersonates a specific brand AND multiple strong signals converge (see `backend/app/investigation/graph.py`). When `should_notify=true`: forced red notification "Sitio fraudulento confirmado — Si ingresaste algún dato, cambiálo en el sitio o app oficial de la marca." + add to runtime blacklist so future visits block pre-DNS. Max 20 pending, expire after 10 minutes.
 
-### Agent prompt — ad-tech / CDN awareness
-Backend agent system prompt explicitly explains: CNAME chains like `*.cdn.cloudflare.net` are legitimate CDN endpoints (not impersonation); obfuscated ad-tech names (`ltmsphrcl.net` = Lotame, `adnxs.com` = Xandr) are normal in ad tech; Safe Browsing flags on ad domains are common FPs. Modify the prompt in `backend/app/investigation/graph.py` if new categories of legitimate-but-suspicious-looking domains appear.
+**should_notify DDB persistence**: `put_domain` in `backend/app/domain_service.py` writes the field when True; `_item_to_entry` reads it with False default. Without both, the field silently drops between agent verdict and cache read, and the poll loop never sees `True` → no RED notification even for confirmed phishing.
+
+### Agent prompt — infrastructure awareness
+Backend agent system prompt explicitly categorises the "not-phishing" landscape: CDN chains (`*.cdn.cloudflare.net`, `*.akamaiedge.net`), obfuscated ad-tech (`ltmsphrcl.net` = Lotame, `adnxs.com` = Xandr), email-marketing platforms (Salesforce Marketing Cloud, mailgun, mailchimp, zetaglobal, Movable Ink, AWS SES tracking domain `awstrack.me`, substack), deep-linking (branch.io/bnc.lt), cloud hosting (azurewebsites.net, herokuapp.com), registrars (godaddy.com subdomains), and big-brand marketing subdomains (aa.com, hilton.com, washingtonpost.com with prefixes like `l.`, `email.`, hash tokens). Signal weighting is spelled out: "no HTTPS on port 443 alone is not proof of phishing"; "fresh SSL certs on marketing subdomains are normal"; Safe Browsing "potential" hits on infra are usually FPs. Modify the prompt in `backend/app/investigation/graph.py` if new categories of legitimate-but-suspicious-looking domains appear.
+
+### Pre-agent short-circuit (popular-domain allowlist)
+`backend/app/popular_domains.py` maintains an in-memory allowlist: Majestic Million top 100K (loaded on startup, refreshed) plus a curated `VENDOR_ALLOWLIST` set (~90 explicit roots covering CDN, cloud hosting, email marketing, ad-tech, deep-linking, registrars, big-brand marketing subdomains). `/check` short-circuits any domain whose eTLD+1 is in the popular set — returns `verdict=allow, source=popular` in <1s without invoking the agent. Blacklist/whitelist hits still take precedence. Adding a new "legit but agent kept blocking it" domain: append to `VENDOR_ALLOWLIST`. The Majestic list only loads at startup; a new deploy is enough to refresh but not required (vendor list works immediately).
 
 ### Safe Browsing tool — uses Lookup API v4
 The `safe_browsing_check` tool was previously hitting Google Transparency Report web API, which returns CAPTCHA 302 redirects to server IPs — the tool reported "MAY be flagged" for EVERY domain, causing widespread agent FPs. Now uses the proper Lookup API v4 (requires `DEFEND_SAFE_BROWSING_API_KEY`). Without the key, the tool explicitly tells the agent "do NOT treat as a flag" — never silently assume a hit.
 
-### Reward / loyalty scam vocabulary
-Phishing vocabulary includes reward/loyalty terms (`puntos`, `premio`, `ganaste`, `sorteo`, `regalo`, `beneficio`, `promocion`, `oferta`, `descuento`, `cupon`, `recompensa`, `canje`, `redimir`). High-risk TLDs include `.st`, `.su`, `.ga`, `.ws`, `.to`, `.me`. The trigger pattern was `oca.puntos.st` (real fraud impersonating OCA loyalty program). Lives in `ios/Shared/BrandRuleEngine.swift`, `ml/features.py`, and the backend heuristics tool.
+### Phishing vocabulary + high-risk TLDs (BrandRuleEngine)
+Reward/loyalty terms (`puntos`, `premio`, `ganaste`, `sorteo`, `regalo`, `beneficio`, `promocion`, `oferta`, `descuento`, `cupon`, `recompensa`, `canje`, `redimir`) and refund/tax-scam terms (`devolucion`, `reintegro`, `reembolso`, `reclamo`, `impuesto`, `iva`, `irpf`) count as phishing vocabulary. High-risk TLDs include `.st`, `.su`, `.ga`, `.ws`, `.to`, `.me` and the Asian TLDs commonly used for LatAm phishing (`.hk`, `.cn`, `.in`, `.id` — every observed OCA/BROU FN used `.hk`). Trigger patterns: `oca.puntos.st` (real OCA loyalty fraud), `devolucion.dgi.hk` (real DGI tax-refund scam). Lives in `ios/Shared/BrandRuleEngine.swift`, `ml/features.py`, and the backend heuristics tool. When adding a new phishing-vocabulary word or high-risk TLD, add regression coverage in `ios/Tests/BrandRuleEngineTests.swift`.
+
+### LLM: GLM 4.7 on Bedrock
+The investigation agent runs on `zai.glm-4.7` (native Bedrock ID — no `bedrock/` prefix; that's LiteLLM notation). GLM 4.7 produces the `reasoning` field natively in Uruguayan Spanish with brand-specific knowledge (e.g. names BROU's "BancaNet" product correctly). Config in `backend/app/config.py:bedrock_model_id`. Sonnet (`us.anthropic.claude-sonnet-4-6`) is the fallback and can be swapped via `DEFEND_BEDROCK_MODEL_ID` env. Multi-model rotation for rate-limit resilience is tracked in `issues.md`.
 
 ### Privacy
 Never record allowed/normal domains. Only blocked/warned domains in telemetry. Anonymous device UUID, not Apple ID.
@@ -101,11 +111,11 @@ When the agent caches an incorrect verdict (e.g., classifies a CDN domain as fra
 
 ## Testing
 
-160+ backend tests. Run with:
+200+ backend tests including regression coverage for known FPs and known phishing (see `tests/test_popular_domains.py::TestKnownFPsFromProdCache`). Run with:
 ```bash
 cd backend && .venv/bin/python -m pytest tests/ -v
 ```
-iOS tests require Xcode.
+iOS tests (`ios/Tests/*.swift`) require Xcode target membership to actually execute — new files may need adding to the Tests target in Xcode before they run.
 
 ## Git
 

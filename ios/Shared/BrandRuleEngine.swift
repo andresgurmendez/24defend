@@ -47,6 +47,9 @@ public final class BrandRuleEngine {
         "puntos", "premio", "ganaste", "sorteo", "regalo",
         "beneficio", "promocion", "oferta", "descuento", "cupon",
         "recompensa", "canje", "redimir",
+        // Tax / refund scams (very common with DGI, BPS, AFIP impersonation)
+        "devolucion", "reintegro", "reembolso", "reclamo",
+        "impuesto", "impuestos", "iva", "irpf",
     ]
 
     // MARK: - TLD risk scores
@@ -57,6 +60,7 @@ public final class BrandRuleEngine {
         "site", "website", "space", "info", "bid", "win", "loan",
         "racing", "review", "download", "stream", "trade", "date",
         "st", "su", "ga", "ws", "to", "me",  // country TLDs commonly abused
+        "hk", "cn", "in", "id",  // Asian TLDs abused for LatAm phishing (all OCA/BROU FN examples used .hk)
     ]
 
     static let lowRiskTLDs: Set<String> = [
