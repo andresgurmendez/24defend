@@ -29,6 +29,8 @@ async def put_domain(entry: DomainEntry) -> None:
         item["confidence"] = str(entry.confidence)
     if entry.reason:
         item["reason"] = entry.reason
+    if entry.should_notify:
+        item["should_notify"] = True
     if entry.checked_at:
         item["checked_at"] = entry.checked_at.isoformat()
     if entry.ttl:
@@ -96,6 +98,7 @@ def _item_to_entry(item: dict) -> DomainEntry:
         verdict=Verdict(item["verdict"]) if "verdict" in item else None,
         confidence=float(item["confidence"]) if "confidence" in item else None,
         reason=item.get("reason"),
+        should_notify=bool(item.get("should_notify", False)),
         checked_at=datetime.fromisoformat(item["checked_at"]) if "checked_at" in item else None,
         ttl=int(item["ttl"]) if "ttl" in item else None,
     )
