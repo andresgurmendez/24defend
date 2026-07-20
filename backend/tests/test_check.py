@@ -162,6 +162,62 @@ class TestCheckEndpoint:
         data = resp.json()
         assert "acme-corp" in data["reason"]
 
+    async def test_popular_domain_short_circuits_agent(self, client, mock_get_table):
+        """Popular-vendor root (e.g. cloudflare.net) short-circuits BEFORE the
+        agent runs. Guards against regressing the FP-fix pipeline."""
+        from app.popular_domains import reset_for_tests
+        reset_for_tests()  # ensure vendor list is loaded
+
+        with patch("app.routes.check.investigate_domain", new_callable=AsyncMock) as mock_agent:
+            resp = await client.post("/check", json={"domain": "cloudflare.net"})
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["verdict"] == "allow"
+            assert data["source"] == "popular"
+            mock_agent.assert_not_awaited()
+
+    async def test_subdomain_of_popular_short_circuits_agent(self, client, mock_get_table):
+        """A deep subdomain of a popular vendor root (aa.com) must short-circuit."""
+        from app.popular_domains import reset_for_tests
+        reset_for_tests()
+
+        with patch("app.routes.check.investigate_domain", new_callable=AsyncMock) as mock_agent:
+            resp = await client.post("/check", json={"domain": "l.loyalty.ms.aa.com"})
+            data = resp.json()
+            assert data["verdict"] == "allow"
+            assert data["source"] == "popular"
+            mock_agent.assert_not_awaited()
+
+    async def test_phishing_domain_not_short_circuited(self, client, mock_get_table):
+        """`premios.oca.hk` must still reach the agent — popular/shape checks
+        must not accidentally allow it."""
+        from app.popular_domains import reset_for_tests
+        reset_for_tests()
+
+        mock_entry = DomainEntry(
+            domain="premios.oca.hk", entry_type=EntryType.cache,
+            verdict=Verdict.block, confidence=0.95,
+            reason="Sitio falso que se hace pasar por OCA",
+        )
+        with patch("app.routes.check.investigate_domain", new_callable=AsyncMock) as mock_agent:
+            mock_agent.return_value = mock_entry
+            resp = await client.post("/check", json={"domain": "premios.oca.hk"})
+            data = resp.json()
+            assert data["verdict"] == "block"
+            assert data["source"] == "agent"
+            mock_agent.assert_awaited_once()
+
+    async def test_blacklist_hit_bypasses_popular_check(self, client, mock_get_table, fake_table):
+        """Blacklist hit must always win, even if the domain is 'popular'."""
+        from app.popular_domains import reset_for_tests
+        reset_for_tests()
+
+        _seed_domain(fake_table, "cloudflare.net", "blacklist", reason="Explicit override")
+        resp = await client.post("/check", json={"domain": "cloudflare.net"})
+        data = resp.json()
+        assert data["verdict"] == "block"
+        assert data["source"] == "blacklist"
+
 
 # ---------------------------------------------------------------------------
 # Retroactive investigation polling tests

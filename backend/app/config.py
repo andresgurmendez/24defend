@@ -22,9 +22,10 @@ class Settings(BaseSettings):
     # Auth
     api_key: str = "dev-api-key-change-me"
 
-    # Bedrock LLM
-    # Alternate to test: "bedrock/zai.glm-4.7"
-    bedrock_model_id: str = "us.anthropic.claude-sonnet-4-6"
+    # Bedrock LLM. Native model IDs, no "bedrock/" prefix (that's LiteLLM notation).
+    # Available: "zai.glm-4.7" (chosen), "zai.glm-4.7-flash",
+    # "zai.glm-5", "us.anthropic.claude-sonnet-4-6".
+    bedrock_model_id: str = "zai.glm-4.7"
     bedrock_region: str = "us-east-1"
 
     # Serper (Google search API)

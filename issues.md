@@ -4,6 +4,54 @@ Lightweight backlog until we set up a proper tracker.
 
 ---
 
+## LLM
+
+### Support LLM rotation for rate limits
+
+The agent (`app/investigation/graph.py`) uses a single Bedrock model
+(`settings.bedrock_model_id`, currently `zai.glm-4.7`). If Bedrock
+throttles the account or the model goes into a Marketplace rate-limit
+window, every `/check` that reaches the agent fails.
+
+**Fix idea:** accept a comma-separated `DEFEND_BEDROCK_MODEL_IDS` env
+(e.g. `zai.glm-4.7,us.anthropic.claude-sonnet-4-6,zai.glm-4.7-flash`).
+On agent invocation:
+1. Try model[0].
+2. On `ThrottlingException` / `TooManyRequestsException` /
+   `ModelStreamErrorException`, fall back to model[1], and so on.
+3. Cache the "last-good" model for a short window so we don't spin the
+   rotation on every call after a partial recovery.
+
+Also emit a metric per model per outcome so we can see rotation
+frequency in CloudWatch.
+
+## Dev workflow
+
+### No local-dev loop for the API
+
+Right now the only way to test backend changes is: Docker build → push
+to ECR → ECS force-new-deployment → wait ~5-8 min → curl. That's a
+brutally slow iteration loop, especially for prompt tweaks and small
+agent-behavior changes. We hit this hard during the FP debugging pass
+— each prompt iteration cost a full deploy cycle.
+
+**Fix idea:** set up `uvicorn app.main:app --reload` runnable from
+`backend/` with:
+- `.env.local` pattern for AWS creds + Bedrock region + fake DynamoDB
+  endpoint (or a real DDB session).
+- Optional lightweight DDB local (`amazon/dynamodb-local`) OR flag to
+  use the real dev DDB table with a scoped prefix.
+- Skip the Majestic load and heavy ingestion by default (add a
+  `DEFEND_SKIP_STARTUP_INGESTION=true` flag).
+- Small make target: `make dev` — starts the server, prints the curl
+  one-liner.
+
+Then package as a Claude skill `.claude/skills/local-dev-api.md` so
+future work has a `/local-dev-api` slash command instead of re-figuring
+this out.
+
+---
+
 ## Infra
 
 ### CI deploy workflow is broken

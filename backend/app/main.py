@@ -12,6 +12,7 @@ from app.scheduler import (
     stop_scheduler,
 )
 from app.ingestion.runner import run_blacklist_ingestion
+from app.popular_domains import get_instance as get_popular_domains
 from app.routes.admin import router as admin_router, public_router as admin_public_router
 from app.routes.check import router as check_router
 from app.routes.telemetry import router as telemetry_router
@@ -19,8 +20,24 @@ from app.routes.telemetry import router as telemetry_router
 logger = logging.getLogger(__name__)
 
 
+async def _load_popular_domains():
+    """Fetch Majestic top 100K into the pre-agent short-circuit set.
+
+    Runs on startup and does not block the server — until it finishes, is_popular()
+    falls back to the curated vendor list (still catches ~50 well-known infra roots).
+    """
+    try:
+        logger.warning("POPULAR START: fetching Majestic top 100K...")
+        total = await get_popular_domains().load_majestic()
+        logger.warning(f"POPULAR DONE: {total} popular domains loaded")
+    except Exception:
+        logger.exception("POPULAR FAILED (short-circuit will use vendor list only)")
+
+
 async def _startup_background_tasks():
     """Run ingestion + bloom generation in background so the server starts fast."""
+    await _load_popular_domains()
+
     try:
         logger.warning("INGESTION START: fetching public threat feeds...")
         stats = await run_blacklist_ingestion()

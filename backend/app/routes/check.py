@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.investigation.graph import investigate_domain
 from app.domain_service import lookup_domain
 from app.models import DomainCheckRequest, DomainCheckResponse, EntryType, Verdict
+from app.popular_domains import get_instance as get_popular_domains
 
 router = APIRouter(tags=["check"])
 
@@ -65,7 +66,18 @@ async def check_domain(req: DomainCheckRequest):
                 should_notify=entry.should_notify,
             )
 
-    # 2. Not found — investigate
+    # 2. Pre-agent short-circuit: obvious infrastructure (Majestic top-100K +
+    #    curated vendor list). Matches on eTLD+1 so any subdomain of a popular
+    #    root — CDN chains, email-marketing tokens, big-brand tracking — is
+    #    treated as safe without the agent call.
+    if get_popular_domains().is_popular(domain):
+        return DomainCheckResponse(
+            domain=domain, verdict=Verdict.allow,
+            reason="Dominio de infraestructura popular",
+            confidence=1.0, source="popular",
+        )
+
+    # 3. Not found — investigate
     result = await investigate_domain(domain)
 
     return DomainCheckResponse(
