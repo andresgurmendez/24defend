@@ -139,8 +139,13 @@ def _format_verdict(state: AgentState) -> dict:
     prompt = state["messages"] + [
         HumanMessage(
             content=(
-                "Based on your investigation above, produce the final verdict. "
-                "Remember: should_notify=true only when verdict=block AND confidence>=0.85 "
+                "Based on your investigation above, produce the final verdict.\n\n"
+                "The `reasoning` field MUST be written in Spanish (Uruguayan/LatAm "
+                "register — 'podés', 'ingresaste', 'se hace pasar por'). It is "
+                "displayed directly to end users in the mobile app. Keep it 1-2 "
+                "short sentences. Do NOT use technical jargon: say 'sitio falso' "
+                "not 'phishing site', 'no tiene certificado seguro' not 'no SSL'.\n\n"
+                "Set should_notify=true only when verdict=block AND confidence>=0.85 "
                 "AND the domain clearly impersonates a specific brand."
             )
         )
