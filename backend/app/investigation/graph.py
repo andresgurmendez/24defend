@@ -139,14 +139,23 @@ def _format_verdict(state: AgentState) -> dict:
     prompt = state["messages"] + [
         HumanMessage(
             content=(
-                "Based on your investigation above, produce the final verdict.\n\n"
-                "The `reasoning` field MUST be written in Spanish (Uruguayan/LatAm "
-                "register — 'podés', 'ingresaste', 'se hace pasar por'). It is "
-                "displayed directly to end users in the mobile app. Keep it 1-2 "
-                "short sentences. Do NOT use technical jargon: say 'sitio falso' "
-                "not 'phishing site', 'no tiene certificado seguro' not 'no SSL'.\n\n"
-                "Set should_notify=true only when verdict=block AND confidence>=0.85 "
-                "AND the domain clearly impersonates a specific brand."
+                "Produce the final structured verdict.\n\n"
+                "=== reasoning field: MUST BE IN SPANISH ===\n"
+                "This is non-negotiable. The reasoning field appears verbatim in a "
+                "Spanish-language mobile app used in Uruguay. English reasoning is "
+                "a bug — reject it and re-write in Spanish.\n\n"
+                "Style: 1-2 short sentences, Uruguayan register ('podés', 'te', "
+                "'ingresaste', 'se hace pasar por'). No technical jargon.\n\n"
+                "GOOD example (write like this):\n"
+                "  'Sitio falso que se hace pasar por OCA usando el gancho de "
+                "'premios'. No tiene certificado seguro y usa un TLD .hk sin "
+                "relación con Uruguay.'\n\n"
+                "BAD example (do NOT write like this):\n"
+                "  'This domain impersonates OCA using a prize lure. No SSL, .hk "
+                "TLD.' ← English = wrong.\n\n"
+                "=== should_notify ===\n"
+                "true only when verdict=block AND confidence>=0.85 AND the domain "
+                "clearly impersonates a specific brand."
             )
         )
     ]
