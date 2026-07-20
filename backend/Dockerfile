@@ -1,5 +1,5 @@
 FROM --platform=linux/amd64 python:3.12-slim
-# Force rebuild: 2026-05-07-should-notify
+# Force rebuild: 2026-07-20-structured-output
 
 WORKDIR /app
 
