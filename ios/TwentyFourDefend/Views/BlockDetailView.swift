@@ -107,22 +107,24 @@ struct BlockDetailView: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
 
-            // Share button — primary CTA
-            Button {
-                showShareSheet = true
-            } label: {
-                HStack {
-                    Image(systemName: "square.and.arrow.up")
-                    Text("Compartir con amigos y familia")
+            // Share button — only for confirmed blocks, not suspicious/warn
+            if severity == .red {
+                Button {
+                    showShareSheet = true
+                } label: {
+                    HStack {
+                        Image(systemName: "square.and.arrow.up")
+                        Text("Compartir con amigos y familia")
+                    }
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.blue)
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .padding(.horizontal, 40)
             }
-            .padding(.horizontal, 40)
 
             Button("Cerrar") { dismiss() }
                 .font(.subheadline)
@@ -133,7 +135,7 @@ struct BlockDetailView: View {
             ShareSheet(items: [shareMessage])
         }
         .onAppear {
-            if autoShare {
+            if autoShare && severity == .red {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     showShareSheet = true
                 }
