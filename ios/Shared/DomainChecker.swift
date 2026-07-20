@@ -117,7 +117,7 @@ public final class DomainChecker {
     /// Stored as a Set for O(1) lookup via base domain extraction.
     private static let infrastructureSet: Set<String> = [
         // CDNs
-        "akamaiedge.net", "akamai.net", "akadns.net", "akamaized.net",
+        "akamaiedge.net", "akamai.net", "akadns.net", "akamaized.net", "akamaihd.net",
         "cloudfront.net", "cloudflare.com", "cloudflare.net", "fastly.net",
         "edgekey.net", "edgesuite.net", "llnwd.net", "footprint.net",
         "jsdelivr.net", "cdnjs.com", "unpkg.com",

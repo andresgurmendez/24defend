@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     api_key: str = "dev-api-key-change-me"
 
     # Bedrock LLM
+    # Alternate to test: "bedrock/zai.glm-4.7"
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-6"
     bedrock_region: str = "us-east-1"
 

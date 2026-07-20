@@ -11,19 +11,34 @@ import json
 import logging
 from datetime import datetime, timezone
 from time import time
-from typing import Annotated
+from typing import Annotated, Literal
 
 from langchain_aws import ChatBedrock
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
+from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
 from app.config import settings
 from app.domain_service import put_domain, scan_by_type
 from app.investigation.tools import ALL_TOOLS
 from app.models import DomainEntry, EntryType, Verdict
+
+
+class AgentVerdict(BaseModel):
+    """Final structured verdict from the domain investigation agent."""
+
+    verdict: Literal["block", "warn", "allow"] = Field(
+        description="block=confirmed phishing, warn=suspicious but uncertain, allow=safe"
+    )
+    confidence: float = Field(ge=0.0, le=1.0, description="Confidence in the verdict, 0.0 to 1.0")
+    should_notify: bool = Field(
+        description="Send retroactive user notification. Only true when verdict=block, "
+        "confidence>=0.85, and the domain clearly impersonates a specific brand."
+    )
+    reasoning: str = Field(description="2-3 sentence explanation of the decision")
 
 logger = logging.getLogger(__name__)
 
@@ -57,13 +72,9 @@ The user who visited this domain has already seen the page. If you determine it 
 3. The evidence is strong: multiple signals like new domain + free SSL + brand impersonation + no legitimate search results
 Do NOT notify for: ambiguous cases, domains that could be legitimate regional variants (e.g., santander-mx.com = real Santander Mexico), or domains where the brand match is weak.
 
-After investigation, respond with EXACTLY this JSON format (no other text):
-{
-    "verdict": "block" | "warn" | "allow",
-    "confidence": 0.0 to 1.0,
-    "should_notify": true | false,
-    "reasoning": "2-3 sentence explanation of your decision"
-}
+After you have gathered enough evidence, briefly summarize what you found. A separate
+extraction step will then produce the final structured verdict — do not attempt to
+format the verdict as JSON yourself.
 """
 
 
@@ -71,45 +82,74 @@ class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
     domain: str
     whitelist_domains: list[str]
+    verdict: AgentVerdict | None
 
 
-def _create_llm():
-    """Create Bedrock Sonnet LLM with tool binding."""
-    llm = ChatBedrock(
+def _base_llm() -> ChatBedrock:
+    return ChatBedrock(
         model_id=settings.bedrock_model_id,
         region_name=settings.bedrock_region,
         model_kwargs={"temperature": 0, "max_tokens": 1024},
     )
-    return llm.bind_tools(ALL_TOOLS)
+
+
+def _create_tool_llm():
+    """LLM for the investigation loop — tools bound for iterative reasoning."""
+    return _base_llm().bind_tools(ALL_TOOLS)
+
+
+def _create_verdict_llm():
+    """LLM for the final extraction — Bedrock structured output guarantees schema."""
+    return _base_llm().with_structured_output(AgentVerdict)
 
 
 def _should_continue(state: AgentState) -> str:
-    """Route: if the last message has tool calls, go to tools. Otherwise, end."""
+    """Route: if the last message has tool calls, keep looping. Otherwise, format the verdict."""
     last_message = state["messages"][-1]
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         return "tools"
-    return END
+    return "format_verdict"
 
 
 def _call_model(state: AgentState) -> dict:
-    """Call the LLM with the current messages."""
-    llm = _create_llm()
+    """Call the tool-bound LLM with the current messages."""
+    llm = _create_tool_llm()
     response = llm.invoke(state["messages"])
     return {"messages": [response]}
+
+
+def _format_verdict(state: AgentState) -> dict:
+    """Extract a validated verdict via Bedrock structured output."""
+    llm = _create_verdict_llm()
+    prompt = state["messages"] + [
+        HumanMessage(
+            content=(
+                "Based on your investigation above, produce the final verdict. "
+                "Remember: should_notify=true only when verdict=block AND confidence>=0.85 "
+                "AND the domain clearly impersonates a specific brand."
+            )
+        )
+    ]
+    verdict: AgentVerdict = llm.invoke(prompt)
+    return {"verdict": verdict}
 
 
 def build_graph() -> StateGraph:
     """Build the LangGraph investigation agent."""
     graph = StateGraph(AgentState)
 
-    # Nodes
     graph.add_node("agent", _call_model)
     graph.add_node("tools", ToolNode(ALL_TOOLS))
+    graph.add_node("format_verdict", _format_verdict)
 
-    # Edges
     graph.set_entry_point("agent")
-    graph.add_conditional_edges("agent", _should_continue, {"tools": "tools", END: END})
+    graph.add_conditional_edges(
+        "agent",
+        _should_continue,
+        {"tools": "tools", "format_verdict": "format_verdict"},
+    )
     graph.add_edge("tools", "agent")
+    graph.add_edge("format_verdict", END)
 
     return graph.compile()
 
@@ -154,6 +194,7 @@ async def investigate_domain(domain: str) -> DomainEntry:
         ],
         "domain": domain,
         "whitelist_domains": whitelist_domains,
+        "verdict": None,
     }
 
     # Run the graph
@@ -164,51 +205,26 @@ async def investigate_domain(domain: str) -> DomainEntry:
         logger.error(f"LangGraph agent failed for {domain}: {e}")
         return _fallback_entry(domain, str(e))
 
-    # Parse the final response
-    last_message = final_state["messages"][-1]
     elapsed = time() - start
     logger.info(f"Investigation for {domain} completed in {elapsed:.1f}s")
 
-    entry = _parse_verdict(domain, last_message.content)
+    verdict = final_state.get("verdict")
+    if verdict is None:
+        logger.error(f"Agent finished without producing a structured verdict for {domain}")
+        return _fallback_entry(domain, "no structured verdict produced")
 
-    # Persist to cache
+    entry = DomainEntry(
+        domain=domain,
+        entry_type=EntryType.cache,
+        verdict={"block": Verdict.block, "warn": Verdict.warn, "allow": Verdict.allow}[verdict.verdict],
+        confidence=verdict.confidence,
+        reason=verdict.reasoning,
+        should_notify=verdict.should_notify,
+        checked_at=datetime.now(timezone.utc),
+        ttl=int(time()) + 30 * 86400,
+    )
     await put_domain(entry)
-
     return entry
-
-
-def _parse_verdict(domain: str, content: str) -> DomainEntry:
-    """Parse the LLM's JSON verdict from its response."""
-    try:
-        # Extract JSON from the response (may have surrounding text)
-        start = content.index("{")
-        end = content.rindex("}") + 1
-        data = json.loads(content[start:end])
-
-        verdict_str = data.get("verdict", "allow").lower()
-        verdict = {"block": Verdict.block, "warn": Verdict.warn}.get(verdict_str, Verdict.allow)
-
-        return DomainEntry(
-            domain=domain,
-            entry_type=EntryType.cache,
-            verdict=verdict,
-            confidence=float(data.get("confidence", 0.5)),
-            reason=data.get("reasoning", "Agent investigation completed"),
-            should_notify=bool(data.get("should_notify", False)),
-            checked_at=datetime.now(timezone.utc),
-            ttl=int(time()) + 30 * 86400,
-        )
-    except (ValueError, json.JSONDecodeError, KeyError) as e:
-        logger.warning(f"Failed to parse agent verdict for {domain}: {e}. Raw: {content[:200]}")
-        return DomainEntry(
-            domain=domain,
-            entry_type=EntryType.cache,
-            verdict=Verdict.warn,
-            confidence=0.3,
-            reason=f"Agent completed but verdict unclear: {content[:200]}",
-            checked_at=datetime.now(timezone.utc),
-            ttl=int(time()) + 7 * 86400,  # shorter cache for unclear verdicts
-        )
 
 
 def _fallback_entry(domain: str, error: str) -> DomainEntry:
