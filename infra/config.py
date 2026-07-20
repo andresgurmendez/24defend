@@ -4,8 +4,8 @@ ENVIRONMENTS = {
     "dev": {
         "account": "081856108753",
         "region": "us-east-1",
-        "fargate_cpu": 256,
-        "fargate_memory": 512,
+        "fargate_cpu": 512,
+        "fargate_memory": 1024,
         "desired_count": 1,
         "bedrock_model_id": "us.anthropic.claude-sonnet-4-6",
         "api_domain": "api.24defend.com",
