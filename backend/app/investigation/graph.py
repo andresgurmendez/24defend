@@ -38,7 +38,13 @@ class AgentVerdict(BaseModel):
         description="Send retroactive user notification. Only true when verdict=block, "
         "confidence>=0.85, and the domain clearly impersonates a specific brand."
     )
-    reasoning: str = Field(description="2-3 sentence explanation of the decision")
+    reasoning: str = Field(
+        description="1-2 sentence explanation of the decision, WRITTEN IN SPANISH "
+        "(Uruguayan / LatAm register). This text is shown directly to end users "
+        "in the app's alert log — keep it short, plain-language, and avoid "
+        "technical jargon (say 'sitio falso' not 'phishing site', 'no tiene "
+        "certificado seguro' not 'no SSL/HTTPS')."
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +81,15 @@ Do NOT notify for: ambiguous cases, domains that could be legitimate regional va
 After you have gathered enough evidence, briefly summarize what you found. A separate
 extraction step will then produce the final structured verdict — do not attempt to
 format the verdict as JSON yourself.
+
+OUTPUT LANGUAGE:
+The final `reasoning` field in the structured verdict MUST be written in Spanish
+(Uruguayan / LatAm register — e.g., "podés", "ingresaste"). This text is shown
+directly to end users in the mobile app's alert log, so keep it short (1-2
+sentences), plain-language, and avoid technical jargon: prefer "sitio falso" over
+"phishing site", "no tiene certificado seguro" over "no SSL", "se hace pasar por
+X" over "impersonates X". Your intermediate thinking during tool use can stay in
+English for your own clarity — only the final reasoning field must be Spanish.
 """
 
 
