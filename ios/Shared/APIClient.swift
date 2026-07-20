@@ -22,8 +22,12 @@ public final class APIClient {
     private static let session: URLSession = {
         let config = URLSessionConfiguration.default
         config.connectionProxyDictionary = [:]  // bypass proxy/VPN
-        config.timeoutIntervalForRequest = 5
-        config.timeoutIntervalForResource = 8
+        // Cold agent investigations take ~40s. Bump timeouts so the first-visit
+        // brand-warn path can actually receive a "block" confirmation before
+        // giving up. Cached lookups still return in <1s. See issues.md — the
+        // proper fix is async /check + follow-up notification.
+        config.timeoutIntervalForRequest = 45
+        config.timeoutIntervalForResource = 60
         return URLSession(configuration: config)
     }()
 

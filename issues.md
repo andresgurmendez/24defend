@@ -30,6 +30,37 @@ red-Xs the check and we ignore it.
 
 ## Backend
 
+### `/check` is synchronous — cold agent calls exceed reasonable client timeouts
+
+Today `/check` blocks on `investigate_domain` when the domain is unknown
+(not in blacklist/whitelist/cache). A cold agent run takes ~40s. The iOS
+`APIClient` was originally set to a 5s timeout — bumped to 45s as a
+band-aid, but 45s of held DNS is a bad UX regardless.
+
+The observed failure mode (real, from testing premios.oca.hk on device):
+1. iOS brand rule fires → `.warned` verdict.
+2. Tunnel holds DNS and calls `/check` for confirmation.
+3. Backend agent needs 40s. Client times out at 5s. Falls back to
+   client's original warn verdict → user sees "Suspicious", not "Blocked".
+4. Backend finishes at 40s, caches the correct "block" verdict — too late
+   for this visit, correct for the next one.
+
+**Proposed pattern:**
+1. `/check` becomes **cache-only** — returns whatever the DB knows
+   (blacklist / whitelist / cache) or `verdict=unknown` if nothing hit.
+   Always fast (<1s).
+2. New `/investigate` (fire-and-forget from client) queues an agent run.
+   Result gets cached — next visit sees the confirmed verdict.
+3. iOS: when `/check` returns "unknown", the tunnel decides based on the
+   local heuristic (warn/allow) AND fires `/investigate` in the
+   background. Optionally, the agent's block verdict can trigger a
+   retroactive push notification via the existing `should_notify` path
+   (once that field ships end-to-end).
+
+This aligns with the ML-flag path already in `PacketTunnelProvider.swift:313`
+which uses `Task.detached { _ = await APIClient.checkDomain(domain) }`
+(fire-and-forget). The brand-warn path should adopt the same shape.
+
 ### Backend has no popular-domain short-circuit
 
 `/check` falls through to the full agent path for any domain not in
