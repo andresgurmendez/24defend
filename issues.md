@@ -26,6 +26,31 @@ red-Xs the check and we ignore it.
 3. Attach a policy allowing ECR push + ECS update-service + CDK deploy.
 4. Add repo secret `AWS_DEPLOY_ROLE_ARN` with the role ARN.
 
+### `/deploy-backend-fast` silently corrupts the `:latest` push
+
+Observed multiple times: `docker push $REGISTRY/$REPO:latest` inside the
+skill's shell block fails with `The repository with name
+'defend-dev-backendatest' does not exist` — the `:l` gets eaten,
+`latest` becomes `atest`. The `:$SHA` push in the same script works
+fine. The literal-URL version (no shell interpolation) also works.
+Root cause is somewhere between zsh interpolation and docker's CLI
+arg parsing — not fully diagnosed.
+
+The failure mode is silent-catastrophic: `set -e` exits, but the
+SHA-tagged push already succeeded, and the CDK task pulls `:latest`
+which is stuck at the digest from the last time the tag correctly
+updated. Multiple code changes never actually reached production;
+`curl` tests kept showing "old" behavior because the container was
+literally running an old image. Wasted ~1 hour of debugging.
+
+**Workaround:** after any `/deploy-backend-fast`, verify with
+`aws ecr describe-images ... imageTag=latest` that the returned
+digest matches your freshly-built SHA. If it doesn't, manually retag
+with literal URLs (no `$VAR`).
+
+**Proper fix:** pin the image digest into the task def (register-task-definition
+or CDK asset) so `:latest` is never load-bearing.
+
 ---
 
 ## Backend
