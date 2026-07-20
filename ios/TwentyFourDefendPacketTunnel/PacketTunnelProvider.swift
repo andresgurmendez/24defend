@@ -116,10 +116,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                         reason: "Confirmed fraudulent after investigation",
                         severity: .red
                     ))
-                    // Critical safety notification — bypass all suppression
+                    // Critical safety notification — bypass all suppression.
+                    // Body copy is set in sendNotification (severity=.red + force=true
+                    // → retroactive template), the `reason` here is only for BlockLog.
                     self.sendNotification(
                         domain: domain,
-                        reason: "Si ingresaste datos personales, cambia tu contrasena.",
+                        reason: "Confirmado como fraudulento tras investigación.",
                         severity: .red,
                         force: true
                     )
@@ -570,10 +572,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         switch severity {
         case .red:
-            if reason.contains("cambia tu contrasena") {
-                // Retroactive escalation — agent confirmed the earlier yellow was real phishing
-                content.title = "Sitio peligroso confirmado"
-                content.body = "\(domain) — \(reason)"
+            if force {
+                // Retroactive escalation — page loaded, then agent confirmed phishing.
+                // We don't know which brand the user was tricked into, so keep it generic
+                // and actionable — tell them to change whatever they entered on the real
+                // site of that brand.
+                content.title = "Sitio fraudulento confirmado"
+                content.body = "\(domain) — Si ingresaste algún dato, cambiálo en el sitio o app oficial de la marca."
             } else {
                 // Immediate block — known bad from blacklist / bloom+backend confirm
                 content.title = "Sitio de phishing bloqueado"
@@ -583,7 +588,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             // Immediate suspicion (brand rule / heuristic). Agent runs in background;
             // if it confirms phishing you'll get a follow-up RED notification.
             content.title = "Sitio sospechoso"
-            content.body = "\(domain) podría estar imitando una marca. No ingreses contraseñas mientras verificamos."
+            content.body = "\(domain) podría estar imitando una marca. No ingreses datos mientras verificamos."
         }
 
         content.sound = .default
