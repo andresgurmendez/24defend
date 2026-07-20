@@ -12,9 +12,9 @@ struct BlockLogView: View {
                         Image(systemName: "shield")
                             .font(.system(size: 48))
                             .foregroundStyle(.secondary)
-                        Text("No alerts yet")
+                        Text("Sin alertas todavía")
                             .font(.headline)
-                        Text("Blocked and suspicious domains will appear here")
+                        Text("Aquí aparecerán los sitios bloqueados o sospechosos")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -40,14 +40,14 @@ struct BlockLogView: View {
                     }
                 }
             }
-            .navigationTitle("Alert Log")
+            .navigationTitle("Alertas")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Done") { dismiss() }
+                    Button("Listo") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Clear") {
+                    Button("Limpiar") {
                         BlockLog.clear()
                         events = []
                     }

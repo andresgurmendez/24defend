@@ -31,16 +31,16 @@ struct BlockDetailView: View {
     private var shareMessage: String {
         if let brand = detectedBrand {
             return """
-            24Defend bloqueo un intento de fraude en mi celular. El enlace \(safeDomain) se hacia pasar por \(brand) para robar datos de acceso.
+            24Defend bloqueó un intento de fraude en mi celular. El enlace \(safeDomain) se hacía pasar por \(brand) para robar datos.
 
-            Si recibis un mensaje con este tipo de enlaces, no lo abras. Podes proteger tu celular con 24Defend:
+            Si recibís un mensaje con este tipo de enlaces, no lo abras. Podés proteger tu celular con 24Defend:
             https://www.24defend.com/?ref=share&brand=\(brand.lowercased())
             """
         } else {
             return """
-            24Defend detecto y bloqueo un enlace fraudulento en mi celular: \(safeDomain)
+            24Defend detectó y bloqueó un enlace fraudulento en mi celular: \(safeDomain)
 
-            Si recibis un mensaje con enlaces sospechosos, no los abras. Podes proteger tu celular con 24Defend:
+            Si recibís un mensaje con enlaces sospechosos, no los abras. Podés proteger tu celular con 24Defend:
             https://www.24defend.com/?ref=share
             """
         }
@@ -70,8 +70,8 @@ struct BlockDetailView: View {
 
             // Description
             Text(severity == .red
-                 ? "24Defend ha bloqueado el acceso a este sitio porque ha sido identificado como fraudulento o de phishing."
-                 : "Este dominio es similar a un sitio oficial verificado. Proceda con precaucion.")
+                 ? "24Defend bloqueó el acceso a este sitio porque fue identificado como fraudulento."
+                 : "Este dominio se parece a un sitio oficial. Andá con cuidado y no ingreses datos.")
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)

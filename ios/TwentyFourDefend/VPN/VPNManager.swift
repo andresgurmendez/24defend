@@ -24,7 +24,7 @@ final class VPNManager: ObservableObject {
 
     func toggle() async {
         guard let manager else {
-            status = "Manager not loaded"
+            status = "Protección no disponible"
             return
         }
 
@@ -38,7 +38,7 @@ final class VPNManager: ObservableObject {
                 try await manager.loadFromPreferences()
                 try manager.connection.startVPNTunnel()
             } catch {
-                status = "Error: \(error.localizedDescription)"
+                status = "No se pudo activar. Intenta de nuevo."
             }
         }
     }
@@ -52,7 +52,7 @@ final class VPNManager: ObservableObject {
                 manager = existing
             } else {
                 let m = NETunnelProviderManager()
-                m.localizedDescription = "24Defend Link Protection"
+                m.localizedDescription = "24Defend – Protección de enlaces"
                 let proto = NETunnelProviderProtocol()
                 proto.providerBundleIdentifier = "com.24defend.app.packet-tunnel"
                 proto.serverAddress = "24Defend DNS Filter"
@@ -61,7 +61,7 @@ final class VPNManager: ObservableObject {
             }
             refreshStatus()
         } catch {
-            status = "Load error: \(error.localizedDescription)"
+            status = "No se pudo cargar la protección"
         }
     }
 
@@ -71,13 +71,13 @@ final class VPNManager: ObservableObject {
         isConnected = (s == .connected)
 
         switch s {
-        case .invalid:        status = "Not configured"
-        case .disconnected:   status = "Disconnected"
-        case .connecting:     status = "Connecting…"
-        case .connected:      status = "Protected"
-        case .reasserting:    status = "Reconnecting…"
-        case .disconnecting:  status = "Disconnecting…"
-        @unknown default:     status = "Unknown"
+        case .invalid:        status = "Configuración pendiente"
+        case .disconnected:   status = "Sin protección"
+        case .connecting:     status = "Activando protección…"
+        case .connected:      status = "Protegido"
+        case .reasserting:    status = "Restableciendo protección…"
+        case .disconnecting:  status = "Desactivando protección…"
+        @unknown default:     status = "Estado desconocido"
         }
     }
 }

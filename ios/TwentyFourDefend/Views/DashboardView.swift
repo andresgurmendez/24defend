@@ -23,7 +23,7 @@ struct DashboardView: View {
                 Button {
                     Task { await vpn.toggle() }
                 } label: {
-                    Text(vpn.isConnected ? "Disable Protection" : "Enable Protection")
+                    Text(vpn.isConnected ? "Desactivar protección" : "Activar protección")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding()
@@ -38,7 +38,7 @@ struct DashboardView: View {
                 // Recent blocks summary
                 if !blockLog.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Recent alerts")
+                        Text("Alertas recientes")
                             .font(.headline)
 
                         ForEach(blockLog.prefix(3)) { event in
