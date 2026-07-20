@@ -313,40 +313,28 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     _ = await APIClient.checkDomain(domain)
                 }
             } else {
-                // Brand rule engine warnings: these are more reliable, keep existing behavior.
-                // Hold DNS, check backend, then decide.
-                let layer: String
-                if reason.contains("Suspicious:") {
-                    layer = "brand_rules"
-                    telemetry.incrementBrandRuleWarns()
-                } else {
-                    layer = "brand_rules"
-                    telemetry.incrementBrandRuleWarns()
-                }
-
+                // Brand rule engine warned. Same pattern as the ML silent-submit
+                // path: notify the user immediately (yellow — "we're checking"),
+                // cache as allow so browser DNS retries within the session don't
+                // re-fire the pipeline, submit for background investigation, and
+                // forward DNS so the user is not stalled. If the agent later
+                // confirms block, the poll loop (see startInvestigationPolling)
+                // escalates to a RED notification and inserts into runtime blacklist.
+                let layer = "brand_rules"
+                telemetry.incrementBrandRuleWarns()
                 logger.info("WARNED \(domain) — \(reason)")
+                telemetry.recordWarn(domain: domain, layer: layer)
+                BlockLog.append(BlockEvent(domain: domain, reason: reason, severity: .yellow))
+
+                sendNotification(domain: domain, reason: reason, severity: .yellow)
+
+                dnsCache.set(domain, verdict: .allow)
+                forwardToUpstream(query: query, original: parsed, proto: proto)
+
                 telemetry.incrementAPICalls()
-                Task {
-                    let backendVerdict = await APIClient.checkDomain(domain)
-
-                    if backendVerdict?.verdict == "block" {
-                        self.dnsCache.set(domain, verdict: .block)
-                        self.logger.warning("ESCALATED to BLOCK: \(domain)")
-                        self.runtimeBlacklist.insert(domain.lowercased())
-                        self.telemetry.recordBlock(domain: domain, layer: "agent")
-                        BlockLog.append(BlockEvent(domain: domain, reason: backendVerdict?.reason ?? reason, severity: .red))
-                        self.sendNotification(domain: domain, reason: backendVerdict?.reason ?? reason, severity: .red)
-
-                        let dnsResp = DNSPacket.buildBlockResponse(for: query)
-                        let ipResp = IPPacket.buildResponse(original: parsed, dnsResponse: dnsResp)
-                        self.packetFlow.writePackets([ipResp], withProtocols: [proto])
-                    } else {
-                        // Don't cache warned domains — re-check next time in case backend updates
-                        self.telemetry.recordWarn(domain: domain, layer: layer)
-                        BlockLog.append(BlockEvent(domain: domain, reason: reason, severity: .yellow))
-                        self.sendNotification(domain: domain, reason: reason, severity: .yellow)
-                        self.forwardToUpstream(query: query, original: parsed, proto: proto)
-                    }
+                PendingInvestigation.shared.add(domain: domain)
+                Task.detached(priority: .utility) {
+                    _ = await APIClient.checkDomain(domain)
                 }
             }
 
@@ -583,16 +571,19 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         switch severity {
         case .red:
             if reason.contains("cambia tu contrasena") {
-                // Retroactive investigation result — critical safety warning
+                // Retroactive escalation — agent confirmed the earlier yellow was real phishing
                 content.title = "Sitio peligroso confirmado"
                 content.body = "\(domain) — \(reason)"
             } else {
-                content.title = "Phishing link blocked"
-                content.body = "\(domain) is a known malicious site. Access was prevented."
+                // Immediate block — known bad from blacklist / bloom+backend confirm
+                content.title = "Sitio de phishing bloqueado"
+                content.body = "\(domain) es un sitio malicioso conocido. Acceso bloqueado."
             }
         case .yellow:
-            content.title = "Suspicious link detected"
-            content.body = "\(domain) — \(reason). Proceed with caution."
+            // Immediate suspicion (brand rule / heuristic). Agent runs in background;
+            // if it confirms phishing you'll get a follow-up RED notification.
+            content.title = "Sitio sospechoso"
+            content.body = "\(domain) podría estar imitando una marca. No ingreses contraseñas mientras verificamos."
         }
 
         content.sound = .default
