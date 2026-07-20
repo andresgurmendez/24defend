@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 
 from app.bloom import extract_base_domain
-from app.domain_service import lookup_domain, put_domains_bulk
+from app.domain_service import delete_domain, lookup_domain, put_domains_bulk, scan_by_type
 from app.ingestion.sources import fetch_all_blacklists, fetch_crtsh_subdomains
 from app.models import EntryType
 
@@ -72,6 +72,20 @@ async def _fetch_popular_domains() -> set[str]:
         return SHARED_INFRASTRUCTURE_DOMAINS
 
 
+async def _cleanup_popular_blacklist_entries(popular_domains: set[str]) -> int:
+    """Remove existing blacklist entries whose base domain is in `popular_domains`.
+
+    Self-heals rows written by past runs that predated the popular-domain filter
+    or that leaked past it (e.g. a feed listed `https://evil.com?u=https://google.com`
+    and the URL extractor pulled `google.com`).
+    """
+    existing = await scan_by_type(EntryType.blacklist)
+    stale = [e.domain for e in existing if extract_base_domain(e.domain) in popular_domains]
+    for d in stale:
+        await delete_domain(d)
+    return len(stale)
+
+
 async def run_blacklist_ingestion() -> dict:
     """Fetch all public blacklist sources and store new domains.
 
@@ -105,6 +119,13 @@ async def run_blacklist_ingestion() -> dict:
             f"Filtered {filtered_count} popular/shared-infrastructure domains "
             f"(Majestic top 100K + hardcoded list)"
         )
+
+    # Self-heal: remove any existing blacklist entries whose base domain is
+    # now considered popular. Catches entries that predate this filter or
+    # that leaked through earlier runs.
+    cleaned = await _cleanup_popular_blacklist_entries(popular_domains)
+    if cleaned:
+        logger.info(f"Removed {cleaned} stale popular-domain entries from blacklist")
 
     # Skip dedup on large batches — DynamoDB batch_writer handles overwrites
     # Checking 28K domains one-by-one takes minutes and isn't worth it
