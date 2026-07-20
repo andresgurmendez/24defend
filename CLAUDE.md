@@ -72,6 +72,21 @@ Never record allowed/normal domains. Only blocked/warned domains in telemetry. A
 
 ## Deployment patterns
 
+### ⚠️ All infra changes MUST go through CDK
+Never modify AWS resources through the console or one-off `aws` CLI
+commands (e.g. `aws ecs register-task-definition`,
+`aws ecs update-service --task-definition ...`,
+`aws ecr set-repository-policy`, `aws iam put-role-policy`, editing
+resources in the console, etc.). Anything not in `infra/stack.py` is
+drift — the next `cdk deploy` will silently revert it, and future
+readers cannot trace where the change came from. If you need something
+that CDK doesn't currently do, add it to `infra/stack.py` and
+`cdk deploy` — that is the ONLY sanctioned path. Data-plane operations
+that CDK doesn't own (e.g. `dynamodb delete-item` for a bad cache
+verdict, ECR image pushes, S3 object uploads) are fine — the rule is
+about infrastructure resources, not runtime state. When in doubt: if it
+would show up in `cdk diff`, it must go through CDK.
+
 ### Backend — fast iteration (preferred during dev)
 **CI is broken** (missing `AWS_DEPLOY_ROLE_ARN` GitHub secret). The fast path is to build, push to ECR, and force ECS redeploy directly. See `/deploy-backend-fast` skill. Bump the `# Force rebuild: <date>` comment in `backend/Dockerfile` if Docker caches too aggressively. Always use `--platform linux/amd64` for the build (Macs are ARM, Fargate is AMD64).
 
