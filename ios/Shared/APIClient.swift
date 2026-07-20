@@ -24,10 +24,12 @@ public final class APIClient {
         config.connectionProxyDictionary = [:]  // bypass proxy/VPN
         // Cold agent investigations take ~40s. Bump timeouts so the first-visit
         // brand-warn path can actually receive a "block" confirmation before
-        // giving up. Cached lookups still return in <1s. See issues.md — the
-        // proper fix is async /check + follow-up notification.
-        config.timeoutIntervalForRequest = 45
-        config.timeoutIntervalForResource = 60
+        // giving up. Cached lookups still return in <1s. Note: ALB has a 60s
+        // idle timeout, so 90 here just means we wait cleanly for ALB's 504
+        // rather than aborting first. See issues.md — the proper fix is async
+        // /check + follow-up notification.
+        config.timeoutIntervalForRequest = 90
+        config.timeoutIntervalForResource = 90
         return URLSession(configuration: config)
     }()
 
