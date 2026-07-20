@@ -7,7 +7,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private let logger = Logger(subsystem: "com.24defend.app.packet-tunnel", category: "dns")
     private let upstreamDNS = "1.1.1.1"
-    private var recentNotifications: Set<String> = []  // debounce: one notification per domain
+    // Notification dedup by BASE DOMAIN (not exact hostname), so that
+    // sorteo.brou.hk and www.sorteo.brou.hk are treated as one "site".
+    private var yellowNotified: Set<String> = []   // base domains that got a yellow this session
+    private var redNotified: Set<String> = []      // base domains that got a red this session
     private var runtimeBlacklist: Set<String> = []    // domains confirmed bad by backend
     private var httpListener: NWListener?
     private var httpsRejectListener: NWListener?
@@ -556,17 +559,31 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
 
-        // Rate limit: max 1 notification per 5 seconds
+        // Rate limit: max 1 notification per 5 seconds (skipped for forced red escalations)
         if !force, let lastNotif = lastNotificationTime, Date().timeIntervalSince(lastNotif) < 5.0 {
             logger.info("Suppressed notification for \(domain) — rate limited")
             return
         }
 
-        // Debounce: only one notification per domain per session (unless forced by escalation)
-        if !force {
-            guard !recentNotifications.contains(domain) else { return }
+        // Session dedup by BASE DOMAIN — one yellow and one red per "site" per
+        // session. `sorteo.brou.hk` and `www.sorteo.brou.hk` share the same
+        // base (brou.hk) so the user gets ONE yellow + ONE red, not four.
+        // Red always allowed once even if yellow already fired (escalation).
+        let baseKey = BloomFilterStore.extractBaseDomain(domain.lowercased())
+        switch severity {
+        case .yellow:
+            if yellowNotified.contains(baseKey) || redNotified.contains(baseKey) {
+                logger.info("Suppressed yellow for \(domain) — already notified about \(baseKey)")
+                return
+            }
+            yellowNotified.insert(baseKey)
+        case .red:
+            if redNotified.contains(baseKey) {
+                logger.info("Suppressed red for \(domain) — already escalated \(baseKey)")
+                return
+            }
+            redNotified.insert(baseKey)
         }
-        recentNotifications.insert(domain)
 
         let content = UNMutableNotificationContent()
 
