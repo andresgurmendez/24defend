@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	Privacy Manifest for the 24Defend packet-tunnel extension.
+
+	The extension intercepts DNS queries (port 53 only) via
+	NEPacketTunnelProvider. It does not collect any user data itself; all
+	data-collection categories are declared in the parent app's manifest.
+	-->
+
+	<key>NSPrivacyTracking</key>
+	<false/>
+
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<!-- The extension does not collect data on its own. Any suspicious
+	     domain names it forwards to the backend for classification are
+	     accounted for in the parent app's NSPrivacyCollectedDataTypes. -->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+
+	<!-- Extension uses UserDefaults via the shared App Group container to
+	     read bloom filters, daily blacklist snapshots, and telemetry
+	     counters written by the main app. -->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

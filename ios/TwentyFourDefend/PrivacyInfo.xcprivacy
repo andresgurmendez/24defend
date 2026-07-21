@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	Privacy Manifest for the 24Defend iOS app.
+	Required by Apple since 2024-05-01 for App Store submission.
+
+	See: https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
+
+	Reason codes referenced below come from Apple's official list:
+	https://developer.apple.com/documentation/bundleresources/privacy_manifest_files/describing_use_of_required_reason_api
+	-->
+
+	<!-- We do not track users across other companies' apps or websites. -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+
+	<!-- No tracking domains — we don't call any advertising/tracking endpoints. -->
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<!--
+	Data collected by the app. Mirrors the "App Privacy" questionnaire in
+	App Store Connect and the public privacy policy at
+	https://www.24defend.com/privacy-en.html
+	-->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<!-- Anonymous device UUID for aggregate analytics. Not linked to user
+		     identity; not used for tracking; user cannot be identified from it. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeDeviceID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+
+		<!-- Aggregated telemetry — DNS queries verified, threats blocked,
+		     performance counters. No individual user identifiable. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeProductInteraction</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+
+		<!-- Suspicious domain names sent to backend for AI classification when
+		     local heuristics are inconclusive (~0.2% of DNS queries). Not
+		     linked to user identity, not used for tracking. Legitimate
+		     browsing history never leaves the device. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherDataTypes</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Required-reason APIs the app calls. Only UserDefaults is used
+	     (via App Group `group.com.24defend.app` for state shared between
+	     the app and the packet-tunnel extension). -->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<!-- CA92.1 — Access info stored by same app / app-group container. -->
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

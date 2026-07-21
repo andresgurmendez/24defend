@@ -20,6 +20,20 @@ targets:
       - path: Shared
     info:
       path: TwentyFourDefend/Info.plist
+      properties:
+        CFBundleDisplayName: 24Defend
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        ITSAppUsesNonExemptEncryption: false
     dependencies:
       - target: TwentyFourDefendPacketTunnel
     settings:
@@ -40,6 +54,11 @@ targets:
       - path: Shared
     info:
       path: TwentyFourDefendPacketTunnel/Info.plist
+      properties:
+        CFBundleDisplayName: "24Defend – Protección de enlaces"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
     dependencies: []
     settings:
       base:

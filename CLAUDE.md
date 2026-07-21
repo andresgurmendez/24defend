@@ -35,7 +35,9 @@ Apple Developer Team ID `332CN243S9` is undergoing migration Individual → Orga
 ## Patterns we follow
 
 ### iOS project regeneration
-After adding/removing Swift files, run `cd ios && xcodegen generate`, then restore Info.plist (CFBundleDisplayName for app, NSExtension for tunnel). xcodegen overwrites plists. Always restore CFBundleDisplayName in app plist and NSExtension dict in tunnel plist after regeneration.
+After adding/removing Swift files, run `cd ios && xcodegen generate` to update the xcodeproj. Custom Info.plist keys required for App Store validation (CFBundleDisplayName, UILaunchScreen, UISupportedInterfaceOrientations, ITSAppUsesNonExemptEncryption, NSExtension) are declared in `project.yml` under each target's `info.properties`, so xcodegen preserves them automatically — no manual restoration needed.
+
+Privacy Manifests (`PrivacyInfo.xcprivacy`) for both targets live inside their source folders and are picked up as resources by xcodegen's folder scan. When adding a new required-reason API call or a new data-collection category, update BOTH `.xcprivacy` files AND the App Privacy questionnaire in App Store Connect (they must agree).
 
 ### Infrastructure allowlist
 Known CDN/platform domains skip all detection (`DomainChecker.isInfrastructureDomain`). Add domains here rather than modifying bloom filter logic. Lives in `ios/Shared/DomainChecker.swift`. Includes `cloudflare.net` (CNAME-chain target), `jsdelivr.net`, ad-tech (`adnxs.com`, `ltmsphrcl.net`, `adzonestatic.com`, `demdex.net`, `omtrdc.net`, etc.). The check runs on the BASE domain after `extractBaseDomain()`, so any subdomain of a listed CDN is automatically allowed.
