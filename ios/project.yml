@@ -41,7 +41,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.24defend.app
         CODE_SIGN_ENTITLEMENTS: TwentyFourDefend/TwentyFourDefend.entitlements
         MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: 1
+        CURRENT_PROJECT_VERSION: 2
 
   TwentyFourDefendPacketTunnel:
     type: app-extension
@@ -65,5 +65,5 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.24defend.app.packet-tunnel
         CODE_SIGN_ENTITLEMENTS: TwentyFourDefendPacketTunnel/TwentyFourDefendPacketTunnel.entitlements
         MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: 1
+        CURRENT_PROJECT_VERSION: 2
         SKIP_INSTALL: true
