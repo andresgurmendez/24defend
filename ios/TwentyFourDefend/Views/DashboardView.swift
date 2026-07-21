@@ -4,6 +4,13 @@ struct DashboardView: View {
     @EnvironmentObject var vpn: VPNManager
     @State private var blockLog: [BlockEvent] = []
     @State private var showLog = false
+    @State private var showDisclosure = false
+
+    // Persists across app launches. Once the user has explicitly accepted the
+    // VPN data-collection disclosure once, we don't show the sheet again.
+    // Required by Apple Guideline 5.4 — the user must see a plain-language
+    // description of what data the VPN handles BEFORE the OS VPN prompt fires.
+    @AppStorage("vpn_disclosure_accepted_v1") private var disclosureAccepted = false
 
     var body: some View {
         NavigationStack {
@@ -19,9 +26,13 @@ struct DashboardView: View {
                 Text(vpn.status)
                     .font(.title2.weight(.semibold))
 
-                // Toggle button
+                // Toggle button. First-time activation gates on the 5.4 disclosure sheet.
                 Button {
-                    Task { await vpn.toggle() }
+                    if !vpn.isConnected && !disclosureAccepted {
+                        showDisclosure = true
+                    } else {
+                        Task { await vpn.toggle() }
+                    }
                 } label: {
                     Text(vpn.isConnected ? "Desactivar protección" : "Activar protección")
                         .font(.headline)
@@ -75,6 +86,12 @@ struct DashboardView: View {
             }
             .sheet(isPresented: $showLog) {
                 BlockLogView()
+            }
+            .sheet(isPresented: $showDisclosure) {
+                VPNDisclosureView {
+                    disclosureAccepted = true
+                    Task { await vpn.toggle() }
+                }
             }
             .onAppear { blockLog = BlockLog.load() }
             .refreshable { blockLog = BlockLog.load() }
