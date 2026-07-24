@@ -21,7 +21,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private var refreshTimer: DispatchSourceTimer?
     private var dailyBlacklistTimer: DispatchSourceTimer?
     private var investigationTimer: DispatchSourceTimer?
-    private let dnsCache = DNSCache(maxSize: 2000, ttl: 3600) // 2K entries, 1 hour TTL
+    private var memoryTimer: DispatchSourceTimer?
+    // 500 entries × ~120 bytes ≈ 60KB — well inside the packet-tunnel
+    // ~15MB extension budget. Was 2000 previously, but the extension has
+    // been getting killed by iOS jetsam under memory pressure. Smaller
+    // cache trades a bit of latency (more re-classifications on cache
+    // eviction) for headroom that keeps us alive.
+    private let dnsCache = DNSCache(maxSize: 500, ttl: 3600)
     private let telemetry = TelemetryClient.shared
     private var lastWhitelistHitTime: Date?
     private var lastWhitelistDomain: String?
@@ -57,23 +63,95 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             self.readPackets()
             completionHandler(nil)
 
-            // Initial refresh + schedule daily repeating refresh
-            Task { await self.refreshData() }
+            // Defer the heavy refresh (bloom filter download + classifier
+            // weights) 5 seconds off the critical path. Doing it inline was
+            // a memory spike right at start, when iOS is already deciding
+            // whether we're a "well-behaved" extension worth keeping around.
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 5) {
+                Task { await self.refreshData() }
+            }
             self.startRefreshTimer()
             self.startDailyBlacklistTimer()
             self.startInvestigationPolling()
+            self.startMemoryWatchdog()
             self.telemetry.startUploadTimer()
         }
     }
 
+    /// Log the extension's remaining memory budget every minute.
+    /// iOS silently kills packet-tunnel extensions when they blow past ~15MB
+    /// (device- and version-dependent) — jetsam. We can't recover from a kill
+    /// once it happens, but the log lets us verify from Console.app whether
+    /// we're actually operating close to the ceiling in the field.
+    private func startMemoryWatchdog() {
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        timer.schedule(deadline: .now() + 60, repeating: 60)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            let availableBytes = Int(os_proc_available_memory())
+            let availableMB = Double(availableBytes) / 1_048_576.0
+            if availableMB < 3.0 {
+                self.logger.warning("MEMORY LOW: \(availableMB, format: .fixed(precision: 2))MB available")
+            } else {
+                self.logger.info("MEMORY: \(availableMB, format: .fixed(precision: 2))MB available")
+            }
+        }
+        timer.resume()
+        memoryTimer = timer
+    }
+
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-        logger.info("Stopping tunnel (reason: \(String(describing: reason)))")
+        // Log both the rawValue (for grep-able telemetry) and a symbolic name
+        // for the reasons we care about. See NEProviderStopReason enum:
+        //   1  userInitiated       — user tapped disconnect
+        //   2  providerFailed      — extension threw / crashed
+        //   3  noNetworkAvailable  — device fully offline
+        //   4  unrecoverableNetworkChange
+        //   5  providerDisabled    — profile disabled
+        //   6  authenticationCanceled
+        //   7  configurationFailed
+        //   8  idleTimeout
+        //   9  configurationDisabled
+        //  10  configurationRemoved
+        //  11  superceded          — replaced by a new tunnel
+        //  12  userLogout / userSwitch
+        //  13  connectionFailed
+        //  14  sleep               — iOS put device to sleep
+        //  15  appUpdate           — extension being updated
+        // Any of {2, 8, 11, 14} showing up regularly = we're getting killed.
+        // Combined with the on-demand rule (see VPNManager) iOS will now
+        // relaunch us, but the reason still tells us WHY we went down.
+        let name: String = {
+            switch reason {
+            case .userInitiated: return "userInitiated"
+            case .providerFailed: return "providerFailed"
+            case .noNetworkAvailable: return "noNetworkAvailable"
+            case .unrecoverableNetworkChange: return "unrecoverableNetworkChange"
+            case .providerDisabled: return "providerDisabled"
+            case .authenticationCanceled: return "authenticationCanceled"
+            case .configurationFailed: return "configurationFailed"
+            case .idleTimeout: return "idleTimeout"
+            case .configurationDisabled: return "configurationDisabled"
+            case .configurationRemoved: return "configurationRemoved"
+            case .superceded: return "superceded"
+            case .userLogout: return "userLogout"
+            case .userSwitch: return "userSwitch"
+            case .connectionFailed: return "connectionFailed"
+            case .sleep: return "sleep"
+            case .appUpdate: return "appUpdate"
+            @unknown default: return "unknown"
+            }
+        }()
+        logger.info("Stopping tunnel (reason=\(reason.rawValue) \(name))")
+
         refreshTimer?.cancel()
         refreshTimer = nil
         dailyBlacklistTimer?.cancel()
         dailyBlacklistTimer = nil
         investigationTimer?.cancel()
         investigationTimer = nil
+        memoryTimer?.cancel()
+        memoryTimer = nil
         telemetry.stopAndFlush()
         completionHandler()
     }
