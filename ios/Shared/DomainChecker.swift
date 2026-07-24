@@ -15,21 +15,49 @@ public final class DomainChecker {
         "24defend-block-test.com",
     ]
 
-    // Official domains — in production, covered by bloom filter whitelist
+    // Official domains — in production, covered by bloom filter whitelist.
+    // Multi-country brand roots are ALL listed explicitly, because the BK-tree
+    // fuzzy pass (step 4) will otherwise flag legit regional variants as
+    // "similar to" the Uruguayan root (e.g. itau.com.br vs itau.com.uy has
+    // Levenshtein distance 2 → similarity 0.83 → false-positive yellow).
     static let whitelist: [String] = [
+        // BROU (UY only)
         "brou.com.uy",
+        // Itaú — UY + regional
         "itau.com.uy",
+        "itau.com.br", "itau.com.ar", "itau.cl", "itau.com.co", "itau.com.py",
+        // Santander — UY + regional
         "santander.com.uy",
+        "santander.com.br", "santander.com.ar", "santander.com.mx",
+        "santander.cl", "santander.com.pe", "santander.com",
+        // Scotiabank — UY + regional
         "scotiabank.com.uy",
+        "scotiabank.com", "scotiabank.com.ar", "scotiabank.com.mx",
+        "scotiabank.com.pe", "scotiabank.cl", "scotiabank.com.co",
+        // HSBC — UY + regional
         "hsbc.com.uy",
+        "hsbc.com", "hsbc.com.ar", "hsbc.com.mx", "hsbc.com.br",
+        // BBVA — UY + regional
         "bbva.com.uy",
-        "mercadolibre.com.uy",
-        "mercadolibre.com",
-        "mercadopago.com",
-        "pedidosya.com",
+        "bbva.com", "bbva.com.ar", "bbva.com.mx", "bbva.com.co",
+        "bbva.com.pe", "bbva.cl", "bbva.es",
+        // Mercado Libre / Mercado Pago — LATAM-wide
+        "mercadolibre.com.uy", "mercadolibre.com",
+        "mercadolibre.com.ar", "mercadolibre.com.br", "mercadolibre.com.mx",
+        "mercadolibre.com.co", "mercadolibre.cl", "mercadolibre.com.pe",
+        "mercadopago.com", "mercadopago.com.uy",
+        "mercadopago.com.ar", "mercadopago.com.br", "mercadopago.com.mx",
+        "mercadopago.com.co", "mercadopago.cl", "mercadopago.com.pe",
+        // PedidosYa — LATAM-wide
+        "pedidosya.com", "pedidosya.com.uy",
+        "pedidosya.com.ar", "pedidosya.com.bo", "pedidosya.com.pa",
+        "pedidosya.com.py", "pedidosya.com.pe",
+        // Telcos
         "antel.com.uy",
-        "movistar.com.uy",
-        "claro.com.uy",
+        "movistar.com.uy", "movistar.com", "movistar.com.ar",
+        "movistar.es", "movistar.com.pe", "movistar.com.mx",
+        "claro.com.uy", "claro.com", "claro.com.ar", "claro.com.br",
+        "claro.com.mx", "claro.com.co", "claro.com.pe", "claro.cl",
     ]
 
     // BK-tree built from whitelist base domains — O(log n) fuzzy search

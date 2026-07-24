@@ -84,7 +84,11 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         let domain = content.body.components(separatedBy: " is ").first
             ?? content.body.components(separatedBy: " — ").first
             ?? content.body
-        let severity: EventSeverity = content.title.contains("Phishing") ? .red : .yellow
+        let severity: EventSeverity = {
+            if content.title.contains("verificado") { return .green }
+            if content.title.contains("Phishing") || content.title.contains("fraudulento") { return .red }
+            return .yellow
+        }()
 
         DispatchQueue.main.async {
             self.blockAlert.domain = domain

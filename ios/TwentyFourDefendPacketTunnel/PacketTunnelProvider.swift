@@ -11,6 +11,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     // sorteo.brou.hk and www.sorteo.brou.hk are treated as one "site".
     private var yellowNotified: Set<String> = []   // base domains that got a yellow this session
     private var redNotified: Set<String> = []      // base domains that got a red this session
+    private var greenNotified: Set<String> = []    // base domains cleared by agent after yellow
+    // Maps base domain -> the full domain string used in the yellow notification's
+    // identifier, so a follow-up green can REPLACE (not stack on top of) the yellow.
+    private var yellowNotificationDomain: [String: String] = [:]
     private var runtimeBlacklist: Set<String> = []    // domains confirmed bad by backend
     private var httpListener: NWListener?
     private var httpsRejectListener: NWListener?
@@ -109,8 +113,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         timer.setEventHandler { [weak self] in
             guard let self else { return }
             Task {
-                let threats = await PendingInvestigation.shared.pollAll()
-                for domain in threats {
+                let result = await PendingInvestigation.shared.pollAll()
+
+                // Confirmed threats → retroactive RED escalation
+                for domain in result.confirmedThreats {
                     self.runtimeBlacklist.insert(domain)
                     self.dnsCache.set(domain, verdict: .block)
                     self.telemetry.recordBlock(domain: domain, layer: "investigation")
@@ -129,6 +135,29 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                         force: true
                     )
                     self.logger.warning("RETROACTIVE BLOCK: \(domain) confirmed malicious after investigation")
+                }
+
+                // Cleared domains → GREEN closure notification, but ONLY if
+                // we already fired a yellow for that base domain. If we didn't,
+                // the user never saw a warning and a green would be noise.
+                for domain in result.cleared {
+                    let baseKey = BloomFilterStore.extractBaseDomain(domain.lowercased())
+                    guard self.yellowNotified.contains(baseKey),
+                          !self.redNotified.contains(baseKey),
+                          !self.greenNotified.contains(baseKey) else { continue }
+
+                    BlockLog.append(BlockEvent(
+                        domain: domain,
+                        reason: "Verificado como sitio real tras investigación",
+                        severity: .green
+                    ))
+                    self.sendNotification(
+                        domain: domain,
+                        reason: "Verificado como sitio real.",
+                        severity: .green,
+                        force: true
+                    )
+                    self.logger.info("CLEARED: \(domain) — agent confirmed legit; green sent")
                 }
             }
         }
@@ -559,16 +588,17 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
 
-        // Rate limit: max 1 notification per 5 seconds (skipped for forced red escalations)
+        // Rate limit: max 1 notification per 5 seconds (skipped for forced red/green escalations)
         if !force, let lastNotif = lastNotificationTime, Date().timeIntervalSince(lastNotif) < 5.0 {
             logger.info("Suppressed notification for \(domain) — rate limited")
             return
         }
 
-        // Session dedup by BASE DOMAIN — one yellow and one red per "site" per
-        // session. `sorteo.brou.hk` and `www.sorteo.brou.hk` share the same
-        // base (brou.hk) so the user gets ONE yellow + ONE red, not four.
+        // Session dedup by BASE DOMAIN — one yellow, one red, one green per
+        // "site" per session. `sorteo.brou.hk` and `www.sorteo.brou.hk` share
+        // the same base (brou.hk) so the user gets ONE of each, not four.
         // Red always allowed once even if yellow already fired (escalation).
+        // Green fires only if yellow already fired and no red has escalated it.
         let baseKey = BloomFilterStore.extractBaseDomain(domain.lowercased())
         switch severity {
         case .yellow:
@@ -577,12 +607,19 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 return
             }
             yellowNotified.insert(baseKey)
+            yellowNotificationDomain[baseKey] = domain
         case .red:
             if redNotified.contains(baseKey) {
                 logger.info("Suppressed red for \(domain) — already escalated \(baseKey)")
                 return
             }
             redNotified.insert(baseKey)
+        case .green:
+            if greenNotified.contains(baseKey) || redNotified.contains(baseKey) {
+                logger.info("Suppressed green for \(domain) — already resolved \(baseKey)")
+                return
+            }
+            greenNotified.insert(baseKey)
         }
 
         let content = UNMutableNotificationContent()
@@ -603,16 +640,33 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             }
         case .yellow:
             // Immediate suspicion (brand rule / heuristic). Agent runs in background;
-            // if it confirms phishing you'll get a follow-up RED notification.
+            // if it confirms phishing you'll get a follow-up RED notification;
+            // if it clears the domain you'll get a follow-up GREEN.
             content.title = "Sitio sospechoso"
             content.body = "\(domain) podría estar imitando una marca. No ingreses datos mientras verificamos."
+        case .green:
+            // Retroactive all-clear — page was yellow-flagged, agent verified it as a
+            // real, legitimate site. Give the user closure so they aren't stuck on the
+            // yellow warning forever.
+            content.title = "Sitio verificado"
+            content.body = "Verificamos \(domain) — es un sitio real. Podés seguir usándolo con normalidad."
         }
 
         content.sound = .default
         content.categoryIdentifier = "BLOCK_ALERT"
 
+        // For a green notification, reuse the yellow's identifier so iOS
+        // REPLACES the yellow in Notification Center instead of stacking a
+        // second entry. For red/yellow, use the current domain string.
+        let identifierDomain: String = {
+            if severity == .green, let yellowDomain = yellowNotificationDomain[baseKey] {
+                return yellowDomain
+            }
+            return domain
+        }()
+
         let request = UNNotificationRequest(
-            identifier: "24defend-\(domain)",
+            identifier: "24defend-\(identifierDomain)",
             content: content,
             trigger: nil  // deliver immediately
         )

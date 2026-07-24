@@ -36,14 +36,24 @@ public final class PendingInvestigation {
         }
     }
 
-    /// Poll all pending domains. Returns domains confirmed as malicious.
-    public func pollAll() async -> [String] {
+    /// Result of a poll pass: which domains were confirmed bad and which were cleared.
+    /// The caller decides how to notify — for cleared domains, we only want to fire
+    /// a "verified safe" green notification if the tunnel already yellow-flagged that
+    /// base domain (so the user sees closure on their earlier warning).
+    public struct PollResult {
+        public let confirmedThreats: [String]
+        public let cleared: [String]
+    }
+
+    /// Poll all pending domains. Returns confirmed threats and cleared domains.
+    public func pollAll() async -> PollResult {
         let now = Date()
         pending.removeAll { now.timeIntervalSince($0.submittedAt) > expirySeconds }
 
-        guard !pending.isEmpty else { return [] }
+        guard !pending.isEmpty else { return PollResult(confirmedThreats: [], cleared: []) }
 
         var confirmedThreats: [String] = []
+        var cleared: [String] = []
         var toRemove: [String] = []
 
         for entry in pending {
@@ -62,14 +72,15 @@ public final class PendingInvestigation {
                 // Domain will be caught by daily blacklist on next visit.
                 toRemove.append(entry.domain)
             } else if response.verdict == "allow" {
-                toRemove.append(entry.domain) // cleared
+                cleared.append(entry.domain)
+                toRemove.append(entry.domain)
             }
             // "warn" = agent still investigating — keep polling
         }
 
         pending.removeAll { entry in toRemove.contains(entry.domain) }
 
-        return confirmedThreats
+        return PollResult(confirmedThreats: confirmedThreats, cleared: cleared)
     }
 
     /// Number of domains currently pending.

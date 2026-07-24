@@ -46,6 +46,38 @@ struct BlockDetailView: View {
         }
     }
 
+    private var themeColor: Color {
+        switch severity {
+        case .red: return .red
+        case .yellow: return .yellow
+        case .green: return .green
+        }
+    }
+
+    private var iconName: String {
+        switch severity {
+        case .red: return "shield.fill"
+        case .yellow: return "exclamationmark.triangle.fill"
+        case .green: return "checkmark.shield.fill"
+        }
+    }
+
+    private var titleText: String {
+        switch severity {
+        case .red: return "Sitio bloqueado"
+        case .yellow: return "Sitio sospechoso"
+        case .green: return "Sitio verificado"
+        }
+    }
+
+    private var descriptionText: String {
+        switch severity {
+        case .red: return "24Defend bloqueó el acceso a este sitio porque fue identificado como fraudulento."
+        case .yellow: return "Este dominio se parece a un sitio oficial. Andá con cuidado y no ingreses datos."
+        case .green: return "Verificamos que este sitio es real. Podés seguir usándolo con normalidad."
+        }
+    }
+
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
@@ -53,25 +85,23 @@ struct BlockDetailView: View {
             // Shield icon
             ZStack {
                 Circle()
-                    .fill(severity == .red ? Color.red.opacity(0.15) : Color.yellow.opacity(0.15))
+                    .fill(themeColor.opacity(0.15))
                     .frame(width: 100, height: 100)
                 Circle()
-                    .stroke(severity == .red ? Color.red : Color.yellow, lineWidth: 3)
+                    .stroke(themeColor, lineWidth: 3)
                     .frame(width: 100, height: 100)
-                Image(systemName: severity == .red ? "shield.fill" : "exclamationmark.triangle.fill")
+                Image(systemName: iconName)
                     .font(.system(size: 44))
-                    .foregroundStyle(severity == .red ? .red : .yellow)
+                    .foregroundStyle(themeColor)
             }
 
             // Title
-            Text(severity == .red ? "Sitio bloqueado" : "Sitio sospechoso")
+            Text(titleText)
                 .font(.title.weight(.bold))
-                .foregroundStyle(severity == .red ? .red : .yellow)
+                .foregroundStyle(themeColor)
 
             // Description
-            Text(severity == .red
-                 ? "24Defend bloqueó el acceso a este sitio porque fue identificado como fraudulento."
-                 : "Este dominio se parece a un sitio oficial. Andá con cuidado y no ingreses datos.")
+            Text(descriptionText)
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)

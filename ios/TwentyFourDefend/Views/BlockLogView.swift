@@ -23,7 +23,7 @@ struct BlockLogView: View {
                     List(events) { event in
                         HStack(spacing: 10) {
                             Circle()
-                                .fill(event.severity == .red ? Color.red : Color.yellow)
+                                .fill(colorFor(event.severity))
                                 .frame(width: 10, height: 10)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(event.domain)
@@ -54,6 +54,14 @@ struct BlockLogView: View {
                 }
             }
             .onAppear { events = BlockLog.load() }
+        }
+    }
+
+    private func colorFor(_ severity: EventSeverity) -> Color {
+        switch severity {
+        case .red: return .red
+        case .yellow: return .yellow
+        case .green: return .green
         }
     }
 }

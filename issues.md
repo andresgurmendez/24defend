@@ -178,6 +178,37 @@ each path.
 
 ## Product / iOS
 
+### Can't filter DNS by source app (browser vs background)
+
+`NEPacketTunnelProvider` (our current extension type) receives raw IP
+packets from the kernel — it has no way to know which app / bundle ID
+generated each DNS query. So we can't scope our analysis to "only what
+the user is actually browsing" vs "background API calls from other
+apps." The observed effect: our per-session query counts include a
+huge tail of app telemetry, analytics, and background fetches that
+the user never intended to hit.
+
+**What we already do:** the popular-domain allowlist (backend
+`app/popular_domains.py`, Majestic top 100K) and the
+`DomainChecker.infrastructureSet` on-device filter absorb most of the
+noise before it reaches the classifier. That is doing a lot of work.
+
+**What could go further:**
+1. Switch to `NEFilterDataProvider` (content-filter extension). That
+   extension type DOES see `NEFlowMetaData.sourceAppUniqueIdentifier`
+   / `sourceAppSigningIdentifier`, so we could scope enforcement to
+   browsers only. Trade-offs: different architecture, filters TCP/UDP
+   flows instead of raw DNS, has its own memory limit, cannot easily
+   coexist with a packet tunnel. This is a real re-arch, not a tweak.
+2. Grow the on-device denylist of "boring" domains (analytics
+   endpoints, CDN telemetry hostnames) so the ML classifier never
+   sees them. Cheap and additive; doesn't require an extension swap.
+3. Per-app VPN via `NEAppRules` — App Store apps don't get this;
+   it needs MDM / enterprise provisioning.
+
+Leaving as reference: right now the popular-domain path is enough,
+but if we ever want "browsing-only" scoping we'd have to look at (1).
+
 ### Uncommitted BlockDetailView share-button change already shipped
 
 Was a long-standing pending item — done in commit `<insert-sha>` (share

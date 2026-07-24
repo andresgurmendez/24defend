@@ -54,8 +54,8 @@ struct DashboardView: View {
 
                         ForEach(blockLog.prefix(3)) { event in
                             HStack {
-                                Image(systemName: event.severity == .red ? "xmark.shield.fill" : "exclamationmark.triangle.fill")
-                                    .foregroundStyle(event.severity == .red ? .red : .yellow)
+                                Image(systemName: iconFor(event.severity))
+                                    .foregroundStyle(colorFor(event.severity))
                                 VStack(alignment: .leading) {
                                     Text(event.domain)
                                         .font(.subheadline.monospaced())
@@ -95,6 +95,22 @@ struct DashboardView: View {
             }
             .onAppear { blockLog = BlockLog.load() }
             .refreshable { blockLog = BlockLog.load() }
+        }
+    }
+
+    private func iconFor(_ severity: EventSeverity) -> String {
+        switch severity {
+        case .red: return "xmark.shield.fill"
+        case .yellow: return "exclamationmark.triangle.fill"
+        case .green: return "checkmark.shield.fill"
+        }
+    }
+
+    private func colorFor(_ severity: EventSeverity) -> Color {
+        switch severity {
+        case .red: return .red
+        case .yellow: return .yellow
+        case .green: return .green
         }
     }
 }

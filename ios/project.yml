@@ -22,6 +22,8 @@ targets:
       path: TwentyFourDefend/Info.plist
       properties:
         CFBundleDisplayName: 24Defend
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "4"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -41,7 +43,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.24defend.app
         CODE_SIGN_ENTITLEMENTS: TwentyFourDefend/TwentyFourDefend.entitlements
         MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: 3
+        CURRENT_PROJECT_VERSION: 4
 
   TwentyFourDefendPacketTunnel:
     type: app-extension
@@ -56,6 +58,8 @@ targets:
       path: TwentyFourDefendPacketTunnel/Info.plist
       properties:
         CFBundleDisplayName: "24Defend – Protección de enlaces"
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "4"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
@@ -65,5 +69,5 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.24defend.app.packet-tunnel
         CODE_SIGN_ENTITLEMENTS: TwentyFourDefendPacketTunnel/TwentyFourDefendPacketTunnel.entitlements
         MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: 3
+        CURRENT_PROJECT_VERSION: 4
         SKIP_INSTALL: true

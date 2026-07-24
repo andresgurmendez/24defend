@@ -3,6 +3,7 @@ import Foundation
 public enum EventSeverity: String, Codable {
     case red    // blacklisted — blocked
     case yellow // similar to whitelist — warned
+    case green  // previously yellow-flagged, cleared by backend after investigation
 }
 
 public struct BlockEvent: Codable, Identifiable {
