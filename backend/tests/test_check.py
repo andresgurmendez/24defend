@@ -207,16 +207,57 @@ class TestCheckEndpoint:
             assert data["source"] == "agent"
             mock_agent.assert_awaited_once()
 
-    async def test_blacklist_hit_bypasses_popular_check(self, client, mock_get_table, fake_table):
-        """Blacklist hit must always win, even if the domain is 'popular'."""
+    async def test_popular_domain_wins_over_blacklist(self, client, mock_get_table, fake_table):
+        """A domain in BOTH the popular allowlist AND blacklist must return allow.
+
+        Rationale: threat feeds (PhishTank etc.) occasionally misclassify high-
+        reputation domains — e.g. PhishTank tagged pokeapi.co as "Other"-target
+        phishing. Blocking a top-1M domain at DNS level breaks millions of legit
+        visits to catch (at best) one bad URL. Popular-domain check MUST run
+        before the DB lookup so mislabeled feed entries can never win.
+
+        If we ever need a genuine override (real live compromise of a popular
+        domain), the correct escape hatch is to remove the entry from the
+        popular set, not to rely on blacklist precedence.
+        """
         from app.popular_domains import reset_for_tests
         reset_for_tests()
 
-        _seed_domain(fake_table, "cloudflare.net", "blacklist", reason="Explicit override")
+        _seed_domain(fake_table, "cloudflare.net", "blacklist", reason="Bogus feed entry")
         resp = await client.post("/check", json={"domain": "cloudflare.net"})
         data = resp.json()
-        assert data["verdict"] == "block"
-        assert data["source"] == "blacklist"
+        assert data["verdict"] == "allow"
+        assert data["source"] == "popular"
+
+    async def test_pokeapi_false_positive_regression(self, client, mock_get_table, fake_table):
+        """Regression: pokeapi.co was blacklisted by a PhishTank misclassification
+        with target=Other. It's in VENDOR_ALLOWLIST as a defensive fallback (in
+        case the Majestic 1M fetch fails at startup), so it must return allow
+        even if a feed re-adds it to the blacklist."""
+        from app.popular_domains import reset_for_tests
+        reset_for_tests()
+
+        _seed_domain(fake_table, "pokeapi.co", "blacklist", reason="Public threat feed")
+        resp = await client.post("/check", json={"domain": "pokeapi.co"})
+        data = resp.json()
+        assert data["verdict"] == "allow"
+        assert data["source"] == "popular"
+
+    async def test_popular_check_precedes_lookup(self, client, mock_get_table, fake_table):
+        """Popular-domain check runs BEFORE the DB lookup. Even a cache entry
+        marked 'block' must not win over a popular-domain match. Guards the
+        precedence order in /check."""
+        from app.popular_domains import reset_for_tests
+        reset_for_tests()
+
+        _seed_domain(
+            fake_table, "cloudflare.net", "cache",
+            verdict="block", confidence="0.99", reason="Cached bogus verdict",
+        )
+        resp = await client.post("/check", json={"domain": "cloudflare.net"})
+        data = resp.json()
+        assert data["verdict"] == "allow"
+        assert data["source"] == "popular"
 
 
 # ---------------------------------------------------------------------------

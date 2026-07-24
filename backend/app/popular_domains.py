@@ -53,10 +53,19 @@ VENDOR_ALLOWLIST: set[str] = {
     # Big-brand marketing subdomains
     "aa.com", "delta.com", "united.com", "hilton.com", "marriott.com",
     "expedia.com", "nytimes.com", "washingtonpost.com", "cnn.com",
+    # Developer APIs / dev tools — long-tail legit sites that threat feeds
+    # sometimes misclassify (e.g. PhishTank tagged pokeapi.co with target=Other).
+    # Belt-and-suspenders in case the Majestic 1M fetch fails on startup.
+    "pokeapi.co",
 }
 
 MAJESTIC_URL = "https://downloads.majestic.com/majestic_million.csv"
-MAJESTIC_LIMIT = 100_000
+# Top 1M is the well-known "reputable domain" floor — a site with enough
+# backlinks to make Majestic's top 1M is very rarely phishing. We prefer
+# this over the top 100K because threat feeds occasionally misclassify
+# long-tail legit domains (e.g. PhishTank once flagged pokeapi.co at #150K
+# with target=Other), and the popular-domain check is our safety net.
+MAJESTIC_LIMIT = 1_000_000
 
 
 class PopularDomains:

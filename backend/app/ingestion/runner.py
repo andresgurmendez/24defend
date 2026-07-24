@@ -40,10 +40,13 @@ SHARED_INFRASTRUCTURE_DOMAINS = {
 
 
 async def _fetch_popular_domains() -> set[str]:
-    """Download Majestic Million top 100K domains to filter shared infrastructure.
+    """Download Majestic Million top 1M domains to filter shared infrastructure.
 
-    Any domain in the top 100K is too popular to block at the DNS level —
-    it serves millions of legitimate users even if one malicious URL was hosted there.
+    Any domain in the top 1M is very unlikely to be phishing (reaching that
+    rank requires substantial backlink diversity, weeks-months of infra
+    investment). Even the rare legit domain that IS compromised shouldn't
+    be blocked at DNS level — the block would nuke every legit visit too.
+    Mirrors app/popular_domains.py:MAJESTIC_LIMIT.
     """
     import httpx
 
@@ -58,7 +61,7 @@ async def _fetch_popular_domains() -> set[str]:
             for i, line in enumerate(resp.text.strip().split("\n")):
                 if i == 0:
                     continue  # skip header
-                if i > 100000:
+                if i > 1_000_000:
                     break
                 parts = line.split(",")
                 if len(parts) >= 3:

@@ -15,13 +15,29 @@ async def check_domain(req: DomainCheckRequest):
     """Check a domain against the database, run agent if unknown.
 
     Flow:
-    1. Look up in DynamoDB (blacklist, whitelist, or cached verdict)
-    2. If found → return immediately
-    3. If not found → run agent investigation → cache result → return
+    1. Popular-domain override — if the eTLD+1 is in Majestic top 1M or in
+       our curated vendor list, return allow immediately. This runs BEFORE
+       the DB lookup so a mistakenly-listed popular domain (e.g. PhishTank
+       once flagged pokeapi.co) can never win over its reputation.
+    2. DB lookup (whitelist / blacklist / cache).
+    3. Agent investigation if nothing else matched.
     """
     domain = req.domain.lower().strip(".")
 
-    # 1. Direct lookup — try exact match, then strip www, then walk up parent domains
+    # 1. Popular-domain override — highest-precedence allow.
+    # A domain popular enough to sit in Majestic top 1M is very unlikely to be
+    # phishing, and even if it were legitimately compromised, blocking at DNS
+    # level is the wrong tool (would nuke the whole site). Threat feeds
+    # occasionally misclassify these (e.g. PhishTank tagging pokeapi.co with
+    # target=Other) — this override is the safety net.
+    if get_popular_domains().is_popular(domain):
+        return DomainCheckResponse(
+            domain=domain, verdict=Verdict.allow,
+            reason="Dominio de infraestructura popular",
+            confidence=1.0, source="popular",
+        )
+
+    # 2. Direct lookup — try exact match, then strip www, then walk up parent domains
     candidates = [domain]
     if domain.startswith("www."):
         candidates.append(domain[4:])
@@ -65,17 +81,6 @@ async def check_domain(req: DomainCheckRequest):
                 source="cache",
                 should_notify=entry.should_notify,
             )
-
-    # 2. Pre-agent short-circuit: obvious infrastructure (Majestic top-100K +
-    #    curated vendor list). Matches on eTLD+1 so any subdomain of a popular
-    #    root — CDN chains, email-marketing tokens, big-brand tracking — is
-    #    treated as safe without the agent call.
-    if get_popular_domains().is_popular(domain):
-        return DomainCheckResponse(
-            domain=domain, verdict=Verdict.allow,
-            reason="Dominio de infraestructura popular",
-            confidence=1.0, source="popular",
-        )
 
     # 3. Not found — investigate
     result = await investigate_domain(domain)
