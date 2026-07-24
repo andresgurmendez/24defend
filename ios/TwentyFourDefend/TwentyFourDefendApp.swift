@@ -81,10 +81,19 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         let content = response.notification.request.content
-        let domain = content.body.components(separatedBy: " is ").first
-            ?? content.body.components(separatedBy: " — ").first
-            ?? content.body
+
+        // Prefer structured userInfo (set by PacketTunnelProvider.sendNotification).
+        // Fall back to body-parsing for any pre-existing notifications that
+        // predated the userInfo migration (rare — session-scoped state).
+        let domain: String = {
+            if let d = content.userInfo["domain"] as? String, !d.isEmpty { return d }
+            return content.body.components(separatedBy: " is ").first
+                ?? content.body.components(separatedBy: " — ").first
+                ?? content.body
+        }()
         let severity: EventSeverity = {
+            if let raw = content.userInfo["severity"] as? String,
+               let sev = EventSeverity(rawValue: raw) { return sev }
             if content.title.contains("verificado") { return .green }
             if content.title.contains("Phishing") || content.title.contains("fraudulento") { return .red }
             return .yellow

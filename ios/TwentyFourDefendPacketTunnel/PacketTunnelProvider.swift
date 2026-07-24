@@ -654,6 +654,15 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         content.sound = .default
         content.categoryIdentifier = "BLOCK_ALERT"
+        // Structured payload so the app-side handler doesn't have to parse
+        // the localized body string (which broke for the green case — the
+        // "Verificamos X — es un sitio real..." body didn't split on the
+        // parser's separators and the whole body ended up in the domain box).
+        content.userInfo = [
+            "domain": domain,
+            "severity": severity.rawValue,
+            "reason": reason,
+        ]
 
         // For a green notification, reuse the yellow's identifier so iOS
         // REPLACES the yellow in Notification Center instead of stacking a
