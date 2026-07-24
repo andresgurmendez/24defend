@@ -23,24 +23,27 @@ public final class DomainChecker {
     static let whitelist: [String] = [
         // BROU (UY only)
         "brou.com.uy",
-        // Itaú — UY + regional
+        // Itaú — UY + regional. Chile serves under BOTH itau.cl AND itau.com.cl
+        // (bare ccTLD and commercial form) — list both to skip the fuzzy check.
         "itau.com.uy",
-        "itau.com.br", "itau.com.ar", "itau.cl", "itau.com.co", "itau.com.py",
-        // Santander — UY + regional
+        "itau.com.br", "itau.com.ar", "itau.cl", "itau.com.cl",
+        "itau.com.co", "itau.com.py",
+        // Santander — UY + regional. Same duplication for .cl variants.
         "santander.com.uy",
         "santander.com.br", "santander.com.ar", "santander.com.mx",
-        "santander.cl", "santander.com.pe", "santander.com",
+        "santander.cl", "santander.com.cl", "santander.com.pe", "santander.com",
         // Scotiabank — UY + regional
         "scotiabank.com.uy",
         "scotiabank.com", "scotiabank.com.ar", "scotiabank.com.mx",
-        "scotiabank.com.pe", "scotiabank.cl", "scotiabank.com.co",
+        "scotiabank.com.pe", "scotiabank.cl", "scotiabank.com.cl",
+        "scotiabank.com.co",
         // HSBC — UY + regional
         "hsbc.com.uy",
         "hsbc.com", "hsbc.com.ar", "hsbc.com.mx", "hsbc.com.br",
         // BBVA — UY + regional
         "bbva.com.uy",
         "bbva.com", "bbva.com.ar", "bbva.com.mx", "bbva.com.co",
-        "bbva.com.pe", "bbva.cl", "bbva.es",
+        "bbva.com.pe", "bbva.cl", "bbva.com.cl", "bbva.es",
         // Mercado Libre / Mercado Pago — LATAM-wide
         "mercadolibre.com.uy", "mercadolibre.com",
         "mercadolibre.com.ar", "mercadolibre.com.br", "mercadolibre.com.mx",
