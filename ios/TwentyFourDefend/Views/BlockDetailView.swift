@@ -116,8 +116,10 @@ struct BlockDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .padding(.horizontal, 40)
 
-            // Brand impersonation callout
-            if let brand = detectedBrand {
+            // Brand impersonation callout — only for red/yellow warnings.
+            // On a GREEN verified sheet this would contradict the "sitio real"
+            // message we just showed the user.
+            if severity != .green, let brand = detectedBrand {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
