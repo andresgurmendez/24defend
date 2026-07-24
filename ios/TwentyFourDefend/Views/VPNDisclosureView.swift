@@ -24,6 +24,25 @@ struct VPNDisclosureView: View {
                         .font(.body)
                         .foregroundStyle(.primary)
 
+                    // Behavior disclosure — Apple Guideline 5.4 transparency.
+                    // With NEOnDemandRuleConnect, iOS will re-establish the
+                    // tunnel automatically after sleep / network changes /
+                    // memory-pressure kills. Users need to know this so the
+                    // VPN icon reappearing isn't a surprise, and so they know
+                    // the toggle is the way to actually turn it off.
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "arrow.clockwise.circle.fill")
+                            .foregroundStyle(.blue)
+                            .font(.title3)
+                        Text("La protección se mantiene activa aunque cambies de red o el teléfono se ponga en reposo. Podés desactivarla cuando quieras desde el botón principal de la app.")
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.blue.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
                     section(
                         icon: "checkmark.seal.fill",
                         color: .green,
