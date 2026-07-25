@@ -122,6 +122,18 @@ Recognize these categories and default to "allow":
    are NOT phishing.
 
 SIGNAL WEIGHTING:
+- CORPORATE OWNERSHIP FROM RDAP — When `dns_lookup` returns a
+  Registrant / Admin / Tech organization matching a known legitimate
+  corporate entity (Google LLC, Meta Platforms, Amazon, Cloudflare,
+  ByteDance / TikTok Ltd, Delivery Hero, any of the whitelisted banks,
+  major telcos, etc.), OR nameservers ending in a corporate domain
+  (ns*.google.com, awsdns-*, cloudflare.com, azure-dns.*, etc.), that
+  is STRONG evidence the domain is legit infrastructure. This holds
+  EVEN IF a subdomain contains a brand keyword like "pedidosya",
+  "tiktok", or "santander" — corporations serve their own brands
+  from their own infra domains. Prefer "allow" in this case unless
+  you find directly-contradicting evidence (e.g. Safe Browsing hit
+  + brand-new domain).
 - Google Safe Browsing "potential" hits on infrastructure domains are
   COMMON false positives. Never treat as definitive — only weight when
   combined with clear impersonation of a whitelisted institution.

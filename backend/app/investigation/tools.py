@@ -16,10 +16,45 @@ from langchain_core.tools import tool
 from app.config import settings
 
 
+def _extract_org_from_vcard(vcard: list) -> str | None:
+    """Pull the organization / full-name field out of an RDAP vCard array.
+
+    RDAP vCard structure is `[type, params, value_type, value]` per entry.
+    We prefer "org" (org name) but fall back to "fn" (formatted name) which
+    for corporate registrants usually equals the org.
+    """
+    org = None
+    for item in vcard:
+        if not isinstance(item, list) or len(item) < 4:
+            continue
+        key = item[0]
+        if key == "org":
+            # `org` value can be a string OR a list [org, dept, ...]
+            v = item[3]
+            org = v[0] if isinstance(v, list) and v else v
+            if org:
+                return str(org)
+        elif key == "fn" and not org:
+            org = str(item[3])
+    return org
+
+
 @tool
 def dns_lookup(domain: str) -> str:
-    """Look up domain registration info via RDAP. Returns domain age, registrar, and registration date.
-    Use this to check if a domain is suspiciously new (registered days ago = likely phishing)."""
+    """Look up domain registration info via RDAP.
+
+    Returns: age (days since registration), registrar, registrant
+    organization, admin/tech contact organizations, and ALL nameservers.
+
+    Interpretation guide:
+      - Domain < 30 days old and impersonating a bank/brand → very likely phishing.
+      - Registrant organization matching a known corporate entity (Google,
+        Meta, Amazon, Cloudflare, TikTok/ByteDance, Delivery Hero, banks,
+        etc.) → strong evidence the domain is legit corporate infrastructure,
+        even if a subdomain contains a brand keyword.
+      - Nameservers ending in a known corporate domain (ns*.google.com,
+        awsdns-*.aws, cloudflare, etc.) → also strong legit signal.
+    """
 
     parts = domain.split(".")
     registrable = ".".join(parts[-2:]) if len(parts) > 2 else domain
@@ -31,7 +66,7 @@ def dns_lookup(domain: str) -> str:
                 return f"RDAP lookup failed (HTTP {resp.status_code}). Domain may not exist or RDAP not available for this TLD."
 
             data = resp.json()
-            results = []
+            results: list[str] = []
 
             # Registration date
             for event in data.get("events", []):
@@ -42,19 +77,34 @@ def dns_lookup(domain: str) -> str:
                 elif event.get("eventAction") == "expiration":
                     results.append(f"Expiration: {event['eventDate'][:10]}")
 
-            # Registrar
+            # Roles we care about — registrar identifies who sold the domain,
+            # but the registrant/admin/technical contacts identify WHO OWNS
+            # AND OPERATES it. Missing the latter was the root cause of the
+            # dhmedia.io / ttdns2.com / adsensecustomsearchads.com FPs.
+            role_labels = {
+                "registrar": "Registrar",
+                "registrant": "Registrant organization",
+                "administrative": "Admin contact organization",
+                "technical": "Tech contact organization",
+            }
             for entity in data.get("entities", []):
-                if "registrar" in entity.get("roles", []):
-                    vcard = entity.get("vcardArray", [None, []])[1]
-                    for item in vcard:
-                        if item[0] == "fn":
-                            results.append(f"Registrar: {item[3]}")
+                roles = entity.get("roles", []) or []
+                vcard = entity.get("vcardArray", [None, []])[1] or []
+                org = _extract_org_from_vcard(vcard)
+                if not org:
+                    continue
+                for role in roles:
+                    if role in role_labels:
+                        results.append(f"{role_labels[role]}: {org}")
 
-            # Nameservers
+            # All nameservers — the corporate suffix (ns*.google.com,
+            # awsdns-*, cloudflare.com etc.) is often the strongest signal
+            # for who actually operates the domain.
             ns = data.get("nameservers", [])
             if ns:
-                ns_names = [n.get("ldhName", "") for n in ns[:3]]
-                results.append(f"Nameservers: {', '.join(ns_names)}")
+                ns_names = [n.get("ldhName", "") for n in ns if n.get("ldhName")]
+                if ns_names:
+                    results.append(f"Nameservers: {', '.join(ns_names)}")
 
             return "\n".join(results) if results else "Domain exists but no detailed RDAP data available."
 
