@@ -229,6 +229,36 @@ class TestCheckEndpoint:
         assert data["verdict"] == "allow"
         assert data["source"] == "popular"
 
+    async def test_google_adsense_domain_regression(self, client, mock_get_table, fake_table):
+        """Regression: adsensecustomsearchads.com is Google-owned (WHOIS
+        registrant Google LLC, name servers ns1-4.google.com) but was
+        flagged as "Public threat feed" by our blacklist ingestion.
+        VENDOR_ALLOWLIST short-circuit must win."""
+        from app.popular_domains import reset_for_tests
+        reset_for_tests()
+
+        _seed_domain(fake_table, "adsensecustomsearchads.com", "blacklist",
+                     reason="Public threat feed")
+        resp = await client.post("/check", json={"domain": "www.adsensecustomsearchads.com"})
+        data = resp.json()
+        assert data["verdict"] == "allow"
+        assert data["source"] == "popular"
+
+    async def test_tiktok_dns_infra_regression(self, client, mock_get_table, fake_table):
+        """Regression: analytics.tiktok.com.ttdns2.com looks like impersonation
+        but ttdns2.com is real TikTok/ByteDance DNS infrastructure (WHOIS
+        registrant TIKTOK LTD). Agent incorrectly cached as block."""
+        from app.popular_domains import reset_for_tests
+        reset_for_tests()
+
+        _seed_domain(fake_table, "analytics.tiktok.com.ttdns2.com", "cache",
+                     verdict="block", confidence="0.9",
+                     reason="Bad agent verdict — ttdns2.com is TikTok infra")
+        resp = await client.post("/check", json={"domain": "analytics.tiktok.com.ttdns2.com"})
+        data = resp.json()
+        assert data["verdict"] == "allow"
+        assert data["source"] == "popular"
+
     async def test_dhmedia_delivery_hero_regression(self, client, mock_get_table, fake_table):
         """Regression: pedidosya-api.dhmedia.io was cached as block because
         the agent saw the 'pedidosya' brand substring in the subdomain and

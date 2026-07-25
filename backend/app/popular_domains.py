@@ -62,6 +62,14 @@ VENDOR_ALLOWLIST: set[str] = {
     # sees "pedidosya-api.dhmedia.io" and calls it impersonation, when
     # dhmedia.io IS Delivery Hero, PedidosYa's parent company.
     "dhmedia.io", "deliveryhero.com", "deliveryhero.io",
+    # Google-owned ad/search infra domains that public threat feeds
+    # (PhishTank etc.) occasionally misclassify. Verified via WHOIS:
+    # registrant Google LLC, name servers ns1-4.google.com.
+    "adsensecustomsearchads.com",
+    # TikTok / ByteDance DNS infra — WHOIS registrant TIKTOK LTD.
+    # Legit subdomains like analytics.tiktok.com.ttdns2.com are
+    # routed through this domain for analytics/CDN purposes.
+    "ttdns2.com",
 }
 
 MAJESTIC_URL = "https://downloads.majestic.com/majestic_million.csv"
