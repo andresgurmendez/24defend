@@ -57,6 +57,11 @@ VENDOR_ALLOWLIST: set[str] = {
     # sometimes misclassify (e.g. PhishTank tagged pokeapi.co with target=Other).
     # Belt-and-suspenders in case the Majestic 1M fetch fails on startup.
     "pokeapi.co",
+    # Corporate-owned infra domains where the parent operates under a
+    # different brand — the agent doesn't know about ownership so it
+    # sees "pedidosya-api.dhmedia.io" and calls it impersonation, when
+    # dhmedia.io IS Delivery Hero, PedidosYa's parent company.
+    "dhmedia.io", "deliveryhero.com", "deliveryhero.io",
 }
 
 MAJESTIC_URL = "https://downloads.majestic.com/majestic_million.csv"

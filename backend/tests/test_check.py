@@ -229,6 +229,26 @@ class TestCheckEndpoint:
         assert data["verdict"] == "allow"
         assert data["source"] == "popular"
 
+    async def test_dhmedia_delivery_hero_regression(self, client, mock_get_table, fake_table):
+        """Regression: pedidosya-api.dhmedia.io was cached as block because
+        the agent saw the 'pedidosya' brand substring in the subdomain and
+        didn't recognize that dhmedia.io IS Delivery Hero (PedidosYa's
+        parent company). VENDOR_ALLOWLIST includes dhmedia.io so any
+        pedidosya-* subdomain short-circuits to allow before the cached
+        block verdict can win."""
+        from app.popular_domains import reset_for_tests
+        reset_for_tests()
+
+        _seed_domain(
+            fake_table, "pedidosya-api.dhmedia.io", "cache",
+            verdict="block", confidence="0.87",
+            reason="Bad agent verdict — dhmedia.io is Delivery Hero",
+        )
+        resp = await client.post("/check", json={"domain": "pedidosya-api.dhmedia.io"})
+        data = resp.json()
+        assert data["verdict"] == "allow"
+        assert data["source"] == "popular"
+
     async def test_pokeapi_false_positive_regression(self, client, mock_get_table, fake_table):
         """Regression: pokeapi.co was blacklisted by a PhishTank misclassification
         with target=Other. It's in VENDOR_ALLOWLIST as a defensive fallback (in

@@ -218,6 +218,42 @@ option for warn severity).
 
 ---
 
+### Agent doesn't know about corporate parent/subsidiary relationships
+
+Observed FP: `pedidosya-api.dhmedia.io` was cached as verdict=block with
+the agent reasoning "dhmedia.io no tiene nada que ver con el servicio
+real" — factually wrong. Delivery Hero (dhmedia.io / deliveryhero.com)
+IS the parent company of PedidosYa and serves legit PedidosYa API/CDN
+endpoints from that infrastructure.
+
+Root cause: the agent sees a known brand keyword ("pedidosya") in a
+subdomain of a domain it doesn't recognize, and concludes impersonation.
+It has no signal for "this apparently-unrelated domain is actually owned
+by the same corporate group."
+
+Immediate fix: added dhmedia.io + deliveryhero.com to VENDOR_ALLOWLIST
+in `app/popular_domains.py`. Same class of fix as pokeapi.co — the
+popular-domain short-circuit runs before the DB lookup, so the bad
+cached verdict never wins.
+
+Longer-term fix ideas:
+1. Bake a small "known parent groups" map into the agent's system
+   prompt: `{"pedidosya": ["dhmedia.io", "deliveryhero.com"],
+   "instagram": ["fbcdn.net"], "youtube": ["googlevideo.com"],
+   ...}`. Cheap in tokens, high accuracy on this class of FP.
+2. Add a `WHOIS_OWNERSHIP_CHECK` tool that queries the base domain's
+   registrant/organization. If the registrant matches a known parent
+   company of the brand the agent is worried about, mark as legit.
+   More robust than a static map but adds latency + external dep.
+3. Track "brand corporate group" as a first-class concept in the
+   whitelist DB and expand the brand rule engine to check against
+   parent groups, not just exact brand match.
+
+Also worth: sweep the cache table periodically for entries where the
+base domain was later added to VENDOR_ALLOWLIST and delete them, so
+we don't leave stale bad rows behind (functionally harmless because
+of the reorder, but keeps DDB clean).
+
 ## Notes
 
 - Add issues here as we hit them. When this file has more than 10-15
