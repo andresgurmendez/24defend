@@ -229,6 +229,23 @@ class TestCheckEndpoint:
         assert data["verdict"] == "allow"
         assert data["source"] == "popular"
 
+    async def test_walmart_cdn_regression(self, client, mock_get_table, fake_table):
+        """Regression: www.walmart.com.cdn-wal.net is Walmart's own CDN
+        alias (verified via DNS CNAME chain into www.walmart.com.edgekey.net
+        → Akamai). Agent cached it as block based on the walmart.com
+        subdomain prefix. Popular-domain short-circuit on cdn-wal.net
+        must override."""
+        from app.popular_domains import reset_for_tests
+        reset_for_tests()
+
+        _seed_domain(fake_table, "www.walmart.com.cdn-wal.net", "cache",
+                     verdict="block", confidence="0.9",
+                     reason="Bad agent verdict — cdn-wal.net is Walmart CDN")
+        resp = await client.post("/check", json={"domain": "www.walmart.com.cdn-wal.net"})
+        data = resp.json()
+        assert data["verdict"] == "allow"
+        assert data["source"] == "popular"
+
     async def test_google_adsense_domain_regression(self, client, mock_get_table, fake_table):
         """Regression: adsensecustomsearchads.com is Google-owned (WHOIS
         registrant Google LLC, name servers ns1-4.google.com) but was

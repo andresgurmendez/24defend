@@ -70,6 +70,12 @@ VENDOR_ALLOWLIST: set[str] = {
     # Legit subdomains like analytics.tiktok.com.ttdns2.com are
     # routed through this domain for analytics/CDN purposes.
     "ttdns2.com",
+    # Walmart CDN — verified via DNS CNAME chain:
+    # www.walmart.com.cdn-wal.net → www.walmart.com.edgekey.net (Akamai
+    # customer alias for Walmart) → Akamai IP. Nameservers PDNSWM*.ULTRADNS.*
+    # (WM = Walmart-managed on Neustar UltraDNS). Agent got tricked by the
+    # "www.walmart.com" prefix under a fresh unknown base domain.
+    "cdn-wal.net",
 }
 
 MAJESTIC_URL = "https://downloads.majestic.com/majestic_million.csv"
