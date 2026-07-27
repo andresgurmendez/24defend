@@ -254,6 +254,22 @@ base domain was later added to VENDOR_ALLOWLIST and delete them, so
 we don't leave stale bad rows behind (functionally harmless because
 of the reorder, but keeps DDB clean).
 
+### test_ingestion.py hangs / times out under full-suite runs
+
+`.venv/bin/pytest -q` (with only `--ignore=tests/test_agent.py`) hangs
+inside `tests/test_ingestion.py`, apparently blocking on a real HTTP
+call to one of the public threat feeds (Phishing.Army, URLhaus,
+OpenPhish, PhishTank). Predates the resolve_domain work — reproduced
+on `main` before my staged changes were applied.
+
+Workaround: `pytest --ignore=tests/test_agent.py --ignore=tests/test_ingestion.py`
+(175 tests, ~0.4s).
+
+Fix: mock the httpx.Client calls inside `app.ingestion.sources.*`
+in a `conftest.py`-level autouse fixture, OR add `pytest-timeout`
+to `requirements-dev.txt` and set a per-test timeout (5s) in
+`pytest.ini` so a hung fetch aborts loudly instead of stalling CI.
+
 ## Notes
 
 - Add issues here as we hit them. When this file has more than 10-15

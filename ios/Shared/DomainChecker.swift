@@ -55,8 +55,10 @@ public final class DomainChecker {
         "pedidosya.com", "pedidosya.com.uy",
         "pedidosya.com.ar", "pedidosya.com.bo", "pedidosya.com.pa",
         "pedidosya.com.py", "pedidosya.com.pe",
-        // Telcos
-        "antel.com.uy",
+        // Telcos. Antel operates several product-specific domains
+        // (IPTV, streaming, etc.) — list them explicitly so BK-tree
+        // doesn't flag them as "similar to antel.com.uy".
+        "antel.com.uy", "anteltv.com.uy", "vera.com.uy", "vera.tv",
         "movistar.com.uy", "movistar.com", "movistar.com.ar",
         "movistar.es", "movistar.com.pe", "movistar.com.mx",
         "claro.com.uy", "claro.com", "claro.com.ar", "claro.com.br",
