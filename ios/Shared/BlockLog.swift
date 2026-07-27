@@ -1,9 +1,12 @@
 import Foundation
 
 public enum EventSeverity: String, Codable {
-    case red    // blacklisted — blocked
-    case yellow // similar to whitelist — warned
-    case green  // previously yellow-flagged, cleared by backend after investigation
+    case red     // blacklisted — blocked
+    case yellow  // similar to whitelist — warned
+    case green   // previously yellow-flagged, cleared by backend after investigation
+    case checked // agent investigated and returned warn — no fraud signals but
+                 // also not confirmed legit. Close the loop honestly instead of
+                 // leaving the user stuck on the yellow.
 }
 
 public struct BlockEvent: Codable, Identifiable {

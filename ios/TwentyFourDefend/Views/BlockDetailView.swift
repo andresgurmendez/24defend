@@ -51,6 +51,7 @@ struct BlockDetailView: View {
         case .red: return .red
         case .yellow: return .yellow
         case .green: return .green
+        case .checked: return .blue
         }
     }
 
@@ -59,6 +60,7 @@ struct BlockDetailView: View {
         case .red: return "shield.fill"
         case .yellow: return "exclamationmark.triangle.fill"
         case .green: return "checkmark.shield.fill"
+        case .checked: return "questionmark.shield.fill"
         }
     }
 
@@ -67,6 +69,7 @@ struct BlockDetailView: View {
         case .red: return "Sitio bloqueado"
         case .yellow: return "Sitio sospechoso"
         case .green: return "Sitio verificado"
+        case .checked: return "Revisión terminada"
         }
     }
 
@@ -75,6 +78,7 @@ struct BlockDetailView: View {
         case .red: return "24Defend bloqueó el acceso a este sitio porque fue identificado como fraudulento."
         case .yellow: return "Este dominio se parece a un sitio oficial. Andá con cuidado y no ingreses datos."
         case .green: return "Verificamos que este sitio es real. Podés seguir usándolo con normalidad."
+        case .checked: return "Terminamos de revisar este sitio. No encontramos señales claras de fraude, pero tampoco pudimos confirmar del todo que sea legítimo. Andá con cuidado si vas a ingresar datos."
         }
     }
 
@@ -117,9 +121,10 @@ struct BlockDetailView: View {
                 .padding(.horizontal, 40)
 
             // Brand impersonation callout — only for red/yellow warnings.
-            // On a GREEN verified sheet this would contradict the "sitio real"
-            // message we just showed the user.
-            if severity != .green, let brand = detectedBrand {
+            // On a GREEN "sitio real" or CHECKED "no encontramos señales
+            // claras de fraude" sheet this would contradict what we just
+            // told the user.
+            if severity != .green, severity != .checked, let brand = detectedBrand {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)

@@ -12,6 +12,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private var yellowNotified: Set<String> = []   // base domains that got a yellow this session
     private var redNotified: Set<String> = []      // base domains that got a red this session
     private var greenNotified: Set<String> = []    // base domains cleared by agent after yellow
+    private var checkedNotified: Set<String> = []  // base domains the agent examined and returned warn on
     // Maps base domain -> the full domain string used in the yellow notification's
     // identifier, so a follow-up green can REPLACE (not stack on top of) the yellow.
     private var yellowNotificationDomain: [String: String] = [:]
@@ -236,6 +237,32 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                         force: true
                     )
                     self.logger.info("CLEARED: \(domain) — agent confirmed legit; green sent")
+                }
+
+                // Inconclusive → CHECKED closure notification. Agent looked at
+                // the domain but couldn't confirm legit or fraud. Close the
+                // loop honestly instead of leaving the yellow hanging. Same
+                // guards as green: only fire if we yellow-notified this base
+                // and haven't already escalated to red or resolved to green.
+                for domain in result.inconclusive {
+                    let baseKey = BloomFilterStore.extractBaseDomain(domain.lowercased())
+                    guard self.yellowNotified.contains(baseKey),
+                          !self.redNotified.contains(baseKey),
+                          !self.greenNotified.contains(baseKey),
+                          !self.checkedNotified.contains(baseKey) else { continue }
+
+                    BlockLog.append(BlockEvent(
+                        domain: domain,
+                        reason: "Revisión terminada — no encontramos señales claras de fraude, pero tampoco pudimos confirmar del todo que sea legítimo",
+                        severity: .checked
+                    ))
+                    self.sendNotification(
+                        domain: domain,
+                        reason: "Revisión terminada, no concluyente.",
+                        severity: .checked,
+                        force: true
+                    )
+                    self.logger.info("INCONCLUSIVE: \(domain) — agent returned warn; checked sent")
                 }
             }
         }
@@ -698,6 +725,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 return
             }
             greenNotified.insert(baseKey)
+        case .checked:
+            if checkedNotified.contains(baseKey) || redNotified.contains(baseKey)
+                || greenNotified.contains(baseKey) {
+                logger.info("Suppressed checked for \(domain) — already resolved \(baseKey)")
+                return
+            }
+            checkedNotified.insert(baseKey)
         }
 
         let content = UNMutableNotificationContent()
@@ -728,6 +762,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             // yellow warning forever.
             content.title = "Sitio verificado"
             content.body = "Verificamos \(domain) — es un sitio real. Podés seguir usándolo con normalidad."
+        case .checked:
+            // Agent investigated but couldn't conclude either way. Close the
+            // loop honestly — this is neither "safe" nor "dangerous", just
+            // "we looked and couldn't tell."
+            content.title = "Revisión terminada"
+            content.body = "Terminamos de revisar \(domain). No encontramos señales claras de fraude, pero tampoco pudimos confirmar del todo que sea legítimo. Andá con cuidado si vas a ingresar datos."
         }
 
         content.sound = .default
@@ -742,11 +782,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             "reason": reason,
         ]
 
-        // For a green notification, reuse the yellow's identifier so iOS
-        // REPLACES the yellow in Notification Center instead of stacking a
-        // second entry. For red/yellow, use the current domain string.
+        // For a green or checked notification, reuse the yellow's identifier
+        // so iOS REPLACES the yellow in Notification Center instead of
+        // stacking a second entry. For red/yellow, use the current domain
+        // string.
         let identifierDomain: String = {
-            if severity == .green, let yellowDomain = yellowNotificationDomain[baseKey] {
+            if (severity == .green || severity == .checked),
+               let yellowDomain = yellowNotificationDomain[baseKey] {
                 return yellowDomain
             }
             return domain

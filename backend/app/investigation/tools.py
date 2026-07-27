@@ -112,6 +112,317 @@ def dns_lookup(domain: str) -> str:
         return f"DNS lookup error: {e}"
 
 
+# ---------------------------------------------------------------------------
+# resolve_domain helpers
+# ---------------------------------------------------------------------------
+
+# CDN customer-alias patterns. When a domain CNAMEs into <label>.<cdn_suffix>,
+# the CDN operator has bound that <label> to a specific customer's account.
+# The customer had to prove control of the origin hostname to Akamai / AWS /
+# etc., so this is a strong "operated by that brand" signal.
+_CDN_ALIAS_SUFFIXES = {
+    "edgekey.net": "Akamai",
+    "akamaiedge.net": "Akamai",
+    "akamaized.net": "Akamai",
+    "cloudfront.net": "AWS CloudFront",
+    "azureedge.net": "Azure Front Door",
+    "azurefd.net": "Azure Front Door",
+    "b-cdn.net": "BunnyCDN",
+    "fastly.net": "Fastly",
+    "cdn.cloudflare.net": "Cloudflare",
+    "netlifyglobalcdn.com": "Netlify",
+    "vercel-dns.com": "Vercel",
+}
+
+# IP owner names that indicate "generic cloud/CDN network" — millions of
+# unrelated customers share these. The agent must NOT read "IP owner is
+# Cloudflare" as evidence of brand ownership; the signal is only meaningful
+# when combined with a matching CDN alias or matching TLS cert.
+_CLOUD_IP_OWNERS = (
+    "cloudflare",
+    "akamai",
+    "amazon",
+    "google llc",
+    "google-cloud",
+    "microsoft",
+    "azure",
+    "vercel",
+    "netlify",
+    "fastly",
+    "digital ocean",
+    "digitalocean",
+    "linode",
+    "ovh",
+    "hetzner",
+    "leaseweb",
+)
+
+# Reverse-DNS suffixes that identify generic hosting — the PTR names the
+# infrastructure operator, NOT the customer.
+_GENERIC_PTR_SUFFIXES = (
+    ".compute.amazonaws.com",
+    ".deploy.static.akamaitechnologies.com",
+    ".googleusercontent.com",
+    ".bc.googleusercontent.com",
+    ".1e100.net",
+    ".cloudfront.net",
+    ".fastly.net",
+    ".cloudapp.net",
+    ".azurewebsites.net",
+    ".herokuapp.com",
+)
+
+
+def _resolve_dns_via_doh(hostname: str, rrtype: str = "A") -> dict:
+    """Resolve a hostname via Google Public DNS DoH endpoint.
+    Returns the parsed JSON (with 'Answer' list) or {} on any failure.
+    Isolated so a DoH outage doesn't break the whole tool."""
+    try:
+        with httpx.Client(timeout=3) as client:
+            resp = client.get(
+                "https://dns.google/resolve",
+                params={"name": hostname, "type": rrtype},
+                headers={"accept": "application/dns-json"},
+            )
+            if resp.status_code == 200:
+                return resp.json()
+    except Exception:
+        pass
+    return {}
+
+
+def _follow_cname_chain(hostname: str, max_hops: int = 5) -> tuple[list[str], list[str]]:
+    """Follow the CNAME chain from `hostname`.
+    Returns (cname_chain, ip_addresses). Both may be empty on failure.
+    Loop-protected via visited-set; capped at max_hops."""
+    chain: list[str] = []
+    ips: list[str] = []
+    visited: set[str] = set()
+    current = hostname.rstrip(".").lower()
+    for _ in range(max_hops):
+        if current in visited:
+            break
+        visited.add(current)
+        data = _resolve_dns_via_doh(current, "A")
+        answers = data.get("Answer") or []
+        # DoH returns CNAMEs (type=5) and A records (type=1) inline.
+        cname_here = None
+        for a in answers:
+            atype = a.get("type")
+            aname = (a.get("data") or "").rstrip(".").lower()
+            if atype == 5 and aname and aname != current:
+                cname_here = aname
+            elif atype == 1 and aname:
+                ips.append(aname)
+        if cname_here and cname_here not in visited:
+            chain.append(cname_here)
+            current = cname_here
+            continue
+        break
+    return chain, ips
+
+
+def _detect_cdn_alias(chain: list[str]) -> tuple[str | None, str | None]:
+    """If any hop in the CNAME chain matches a known CDN customer-alias
+    pattern, return (cdn_provider, customer_label). Else (None, None).
+
+    Example: 'www.walmart.com.edgekey.net' → ('Akamai', 'www.walmart.com')."""
+    for hop in chain:
+        for suffix, provider in _CDN_ALIAS_SUFFIXES.items():
+            marker = "." + suffix
+            if hop.endswith(marker):
+                label = hop[: -len(marker)]
+                if label:
+                    return provider, label
+    return None, None
+
+
+def _lookup_ip_owner(ip: str) -> tuple[str | None, str | None]:
+    """Return (owner_name, is_cloud_flag_reason).
+    Tries ARIN RDAP first; ARIN redirects for non-ARIN space so this
+    also picks up LACNIC / RIPE / APNIC / AFRINIC.
+    Returns (None, None) on any failure — never raises."""
+    try:
+        with httpx.Client(timeout=3, follow_redirects=True) as client:
+            resp = client.get(f"https://rdap.arin.net/registry/ip/{ip}")
+            if resp.status_code != 200:
+                return None, None
+            data = resp.json()
+        owner: str | None = None
+        # Try 'name' at top-level (network name), then walk entities for org.
+        owner = data.get("name") or None
+        for entity in data.get("entities", []) or []:
+            vcard = (entity.get("vcardArray") or [None, []])[1] or []
+            org = _extract_org_from_vcard(vcard)
+            if org:
+                owner = org
+                break
+        if not owner:
+            return None, None
+        neutral = None
+        ol = owner.lower()
+        if any(k in ol for k in _CLOUD_IP_OWNERS):
+            neutral = (
+                "NEUTRAL — shared cloud/CDN network with millions of unrelated "
+                "customers. Only weight this signal if a CNAME alias or TLS "
+                "certificate additionally links to a specific brand."
+            )
+        return owner, neutral
+    except Exception:
+        return None, None
+
+
+def _reverse_dns(ip: str) -> tuple[str | None, bool]:
+    """Return (ptr_hostname, is_generic_hosting_flag). Isolated + timed."""
+    try:
+        socket.setdefaulttimeout(2)
+        host, _, _ = socket.gethostbyaddr(ip)
+        host = host.rstrip(".").lower()
+        generic = any(host.endswith(s) for s in _GENERIC_PTR_SUFFIXES)
+        return host, generic
+    except Exception:
+        return None, False
+    finally:
+        socket.setdefaulttimeout(None)
+
+
+def _tls_cert_subject(hostname: str) -> dict:
+    """Fetch the served TLS cert for `hostname`. Returns a dict with keys
+    subject_cn, san_dns, issuer_org, is_free_ca. Empty dict on failure."""
+    check = hostname[4:] if hostname.startswith("www.") else hostname
+    try:
+        ctx = ssl.create_default_context()
+        conn = ctx.wrap_socket(socket.socket(), server_hostname=check)
+        conn.settimeout(3)
+        conn.connect((check, 443))
+        cert = conn.getpeercert()
+        conn.close()
+        if not cert:
+            return {}
+        subject_parts = {k: v for item in cert.get("subject", ()) for k, v in item}
+        issuer_parts = {k: v for item in cert.get("issuer", ()) for k, v in item}
+        san = cert.get("subjectAltName", ()) or ()
+        san_dns = [v for t, v in san if t == "DNS"]
+        issuer_org = issuer_parts.get("organizationName", "")
+        free_cas = ("let's encrypt", "zerossl", "buypass", "ssl.com")
+        return {
+            "subject_cn": subject_parts.get("commonName"),
+            "san_dns": san_dns,
+            "issuer_org": issuer_org,
+            "is_free_ca": any(ca in issuer_org.lower() for ca in free_cas),
+        }
+    except Exception:
+        return {}
+
+
+@tool
+def resolve_domain(domain: str) -> str:
+    """Follow DNS resolution end-to-end and report who actually operates
+    the destination.
+
+    Runs four independent checks (each fails gracefully — a slow or
+    unavailable check does not block the others):
+    1. CNAME chain (up to 5 hops, loop-protected)
+    2. Terminal IP owner via IP RDAP (LACNIC/ARIN/RIPE/APNIC/AFRINIC)
+    3. Reverse DNS (PTR), flagged as GENERIC when it just names the
+       hosting operator instead of the customer
+    4. TLS certificate Subject / SAN / Issuer
+
+    STRONG legit-infra signals (report each independently so the model
+    can combine them):
+    - CNAME terminates in <brand>.edgekey.net / .cloudfront.net etc.
+      where <brand> matches the brand named in the queried subdomain
+      (the CDN issued that alias only after ownership proof).
+    - IP owner is a specific named company matching the brand
+      (e.g. "CLIENTE ANTEL URUGUAY" for anteltv.com.uy).
+    - TLS Subject/SAN lists the real brand's canonical hostname.
+
+    NEUTRAL / weak signals:
+    - IP owner is a shared cloud/CDN (Cloudflare/Akamai/AWS/Azure/GCP/
+      Vercel/Netlify/etc.) — this alone tells you nothing; millions of
+      unrelated customers share these networks.
+    - Reverse DNS is a generic hosting PTR (*.compute.amazonaws.com,
+      *.deploy.static.akamaitechnologies.com, *.googleusercontent.com,
+      *.1e100.net, etc.) — again names the operator, not the customer.
+    - Let's Encrypt / ZeroSSL / free CA cert alone is not suspicious;
+      it becomes suspicious only when combined with a fresh domain
+      AND a brand keyword in the domain name.
+
+    Use this tool when the domain has a brand keyword in a subdomain
+    but the base domain isn't recognized — this is the highest-yield
+    check for that class of case (dhmedia.io, cdn-wal.net, anteltv.com.uy,
+    ttdns2.com, adsensecustomsearchads.com are all recent examples).
+    """
+    hostname = domain.strip(".").lower()
+    if not hostname:
+        return "resolve_domain: empty input."
+
+    results: list[str] = []
+
+    # 1. CNAME chain + terminal IPs
+    chain, ips = _follow_cname_chain(hostname)
+    if chain:
+        results.append(f"CNAME chain: {hostname} → " + " → ".join(chain))
+    elif not ips:
+        results.append(f"DNS resolution failed for {hostname} (no A / no CNAME).")
+    else:
+        results.append(f"No CNAME chain (direct A record): {hostname}")
+
+    # CDN customer alias detection
+    cdn_provider, cdn_customer = _detect_cdn_alias(chain)
+    if cdn_provider:
+        results.append(
+            f"CDN alias: {cdn_provider} customer '{cdn_customer}'. "
+            f"CDN issued this alias only after verifying '{cdn_customer}' "
+            f"was operated by the requester — strong legit-infra signal "
+            f"if it matches the brand in the queried domain."
+        )
+
+    if ips:
+        results.append(f"Terminal IPs: {', '.join(ips[:3])}")
+
+        # 2. IP owner (only look up first IP — usually enough)
+        owner, neutral_note = _lookup_ip_owner(ips[0])
+        if owner:
+            results.append(f"IP owner: {owner}")
+            if neutral_note:
+                results.append(f"  → {neutral_note}")
+
+        # 3. Reverse DNS
+        ptr, is_generic = _reverse_dns(ips[0])
+        if ptr:
+            if is_generic:
+                results.append(
+                    f"Reverse DNS: {ptr} (GENERIC hosting hostname — "
+                    f"identifies the operator, not the customer)"
+                )
+            else:
+                results.append(f"Reverse DNS: {ptr}")
+
+    # 4. TLS certificate
+    cert = _tls_cert_subject(hostname)
+    if cert:
+        cn = cert.get("subject_cn") or "?"
+        issuer = cert.get("issuer_org") or "?"
+        results.append(f"TLS cert Subject CN: {cn}")
+        san = cert.get("san_dns") or []
+        if san:
+            shown = ", ".join(san[:6])
+            more = f" (+{len(san)-6} more)" if len(san) > 6 else ""
+            results.append(f"TLS cert SAN DNS: {shown}{more}")
+        results.append(f"TLS cert issuer: {issuer}")
+        if cert.get("is_free_ca"):
+            results.append(
+                "  → Free CA (Let's Encrypt / ZeroSSL / etc.). "
+                "NOT suspicious by itself; only concerning when combined "
+                "with a fresh domain AND a brand keyword in the domain name."
+            )
+    else:
+        results.append("TLS certificate: could not fetch (no HTTPS, timeout, or invalid).")
+
+    return "\n".join(results) if results else "resolve_domain: no data collected."
+
+
 @tool
 def ssl_certificate_check(domain: str) -> str:
     """Check the SSL/TLS certificate of a domain. Returns issuer, age, validity, and SANs.
@@ -365,6 +676,7 @@ def domain_heuristics(domain: str) -> str:
 
 ALL_TOOLS = [
     dns_lookup,
+    resolve_domain,
     ssl_certificate_check,
     levenshtein_similarity,
     google_search,

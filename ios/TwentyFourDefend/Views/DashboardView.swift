@@ -103,6 +103,7 @@ struct DashboardView: View {
         case .red: return "xmark.shield.fill"
         case .yellow: return "exclamationmark.triangle.fill"
         case .green: return "checkmark.shield.fill"
+        case .checked: return "questionmark.shield.fill"
         }
     }
 
@@ -111,6 +112,7 @@ struct DashboardView: View {
         case .red: return .red
         case .yellow: return .yellow
         case .green: return .green
+        case .checked: return .blue
         }
     }
 }

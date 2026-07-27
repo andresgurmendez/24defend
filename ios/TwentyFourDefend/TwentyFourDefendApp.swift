@@ -95,6 +95,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             if let raw = content.userInfo["severity"] as? String,
                let sev = EventSeverity(rawValue: raw) { return sev }
             if content.title.contains("verificado") { return .green }
+            if content.title.contains("Revisión terminada") { return .checked }
             if content.title.contains("Phishing") || content.title.contains("fraudulento") { return .red }
             return .yellow
         }()

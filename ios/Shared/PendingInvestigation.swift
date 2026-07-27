@@ -36,29 +36,39 @@ public final class PendingInvestigation {
         }
     }
 
-    /// Result of a poll pass: which domains were confirmed bad and which were cleared.
-    /// The caller decides how to notify — for cleared domains, we only want to fire
-    /// a "verified safe" green notification if the tunnel already yellow-flagged that
-    /// base domain (so the user sees closure on their earlier warning).
+    /// Result of a poll pass: which domains resolved to what.
+    ///
+    /// The caller decides how to notify — the poll loop only reports the
+    /// verdicts. Three terminal states are surfaced:
+    ///   - confirmedThreats: agent said block AND recommended notifying
+    ///   - cleared:          agent said allow (fire green if we had a yellow)
+    ///   - inconclusive:     agent said warn (fire "checked but couldn't confirm"
+    ///                       if we had a yellow — otherwise the user has no
+    ///                       context for the notification)
     public struct PollResult {
         public let confirmedThreats: [String]
         public let cleared: [String]
+        public let inconclusive: [String]
     }
 
-    /// Poll all pending domains. Returns confirmed threats and cleared domains.
+    /// Poll all pending domains. Returns confirmed threats, cleared domains,
+    /// and domains the agent investigated but couldn't decide on.
     public func pollAll() async -> PollResult {
         let now = Date()
         pending.removeAll { now.timeIntervalSince($0.submittedAt) > expirySeconds }
 
-        guard !pending.isEmpty else { return PollResult(confirmedThreats: [], cleared: []) }
+        guard !pending.isEmpty else {
+            return PollResult(confirmedThreats: [], cleared: [], inconclusive: [])
+        }
 
         var confirmedThreats: [String] = []
         var cleared: [String] = []
+        var inconclusive: [String] = []
         var toRemove: [String] = []
 
         for entry in pending {
             guard let response = await APIClient.checkDomain(entry.domain) else {
-                continue // API unreachable — keep pending
+                continue // API unreachable — keep pending, retry next tick
             }
 
             if response.verdict == "block" && (response.shouldNotify ?? false) {
@@ -74,13 +84,25 @@ public final class PendingInvestigation {
             } else if response.verdict == "allow" {
                 cleared.append(entry.domain)
                 toRemove.append(entry.domain)
+            } else if response.verdict == "warn" {
+                // Agent investigated and committed to warn — no strong fraud
+                // signals but also not conclusively legit. Treat as terminal
+                // so the yellow gets closed by the "checked but inconclusive"
+                // notification, instead of the previous behavior of polling
+                // forever (silent user experience).
+                inconclusive.append(entry.domain)
+                toRemove.append(entry.domain)
             }
-            // "warn" = agent still investigating — keep polling
+            // Unknown verdict → keep polling (defensive)
         }
 
         pending.removeAll { entry in toRemove.contains(entry.domain) }
 
-        return PollResult(confirmedThreats: confirmedThreats, cleared: cleared)
+        return PollResult(
+            confirmedThreats: confirmedThreats,
+            cleared: cleared,
+            inconclusive: inconclusive,
+        )
     }
 
     /// Number of domains currently pending.

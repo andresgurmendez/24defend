@@ -270,6 +270,53 @@ in a `conftest.py`-level autouse fixture, OR add `pytest-timeout`
 to `requirements-dev.txt` and set a per-test timeout (5s) in
 `pytest.ini` so a hung fetch aborts loudly instead of stalling CI.
 
+### Yellow-never-green: additional levers we discussed but deferred
+
+Ships now: when the agent verdict is `warn`, close the loop with a
+"checked but inconclusive" notification (see the shipped .checked
+severity + new copy). Below is the rest of the design space we
+weighed and chose not to implement yet.
+
+**A. Bias agent toward decisive verdicts (prompt refinement).** Warn
+should be reserved for "tools returned genuinely conflicting evidence."
+Force block / allow otherwise. Cost near-zero. Risk: agent forced to
+allow when it should have warned → could add FPs. Do this once we
+have data on how often the current agent produces warn in production.
+
+**C. Extend polling window.** `PendingInvestigation.expirySeconds`
+is currently 600 (10 min). Cold agent runs + network retries can
+exceed that, and the entry silently drops. Bumping to 1800 (30 min)
+would give the agent more room without any UX cost. Trivial change;
+worth pairing with the poll-expiry "we couldn't reach the server"
+notification (see below).
+
+**D. Server-side resolve warn → block/allow.** Second-pass agent
+run (different LLM / more tools / longer context) whenever the first
+pass returned warn. Cache only the final decisive verdict; never
+persist warn. Biggest architectural fix but adds Bedrock spend per
+warn. Best long-term.
+
+**E. Downgrade warn → soft-green after N polls.** If we see 3
+consecutive warn responses with no block in between, promote to
+green with softer copy. Risk: false-clearing real phishing. Not
+recommended alone — safer as a companion to A + D.
+
+**F. Different treatment by yellow origin.** BK-tree-fuzzy-match
+yellows ("similar to whitelist") + agent warn are almost always
+legit long-tail domains — could auto-promote to a soft-green after
+warn. Brand-rule yellows (explicit brand keyword) + agent warn
+should stay amber. Needs threading the yellow origin from the tunnel
+down to `PendingInvestigation`, then branching on it in the poll
+handler. Moderate effort.
+
+**G. Poll-expiry "we couldn't reach the server" notification.**
+When `expirySeconds` elapses with no decisive verdict at all
+(neither block nor allow nor warn — usually a network unreachable
+situation), fire an explicit notification instead of the current
+silent drop. Different copy from the warn case: "No pudimos
+completar la revisión de <domain> — puede haber sido un problema
+de red. Andá con cuidado." Small change.
+
 ## Notes
 
 - Add issues here as we hit them. When this file has more than 10-15

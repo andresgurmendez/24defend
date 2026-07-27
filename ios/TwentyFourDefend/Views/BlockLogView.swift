@@ -62,6 +62,7 @@ struct BlockLogView: View {
         case .red: return .red
         case .yellow: return .yellow
         case .green: return .green
+        case .checked: return .blue
         }
     }
 }
