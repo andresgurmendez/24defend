@@ -1,8 +1,25 @@
 import asyncio
 import logging
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+
+# Configure Python logging so app-level logger.info/warning/error lines
+# reach stdout (and therefore CloudWatch, via the Fargate log driver).
+# Without this the root logger's default level is WARNING and app INFO
+# messages get dropped — meaning we had zero visibility into per-request
+# agent behavior (Starting LangGraph investigation, IP owner, etc.) even
+# though the code emitted plenty of logs.
+#
+# `force=True` overrides any handler uvicorn set up before this import
+# ran (uvicorn attaches its own root handlers when started).
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    stream=sys.stdout,
+    force=True,
+)
 
 from app.agent import load_whitelist_cache
 from app.db import ensure_table

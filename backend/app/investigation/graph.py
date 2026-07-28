@@ -411,6 +411,15 @@ async def investigate_domain(domain: str) -> DomainEntry:
         heur_task, rdap_task, resolve_task, sb_task,
         return_exceptions=True,
     )
+    # One-line summary of pre-fetch outcomes so log grep can confirm each
+    # investigation had the full evidence pack injected.
+    def _tag(x) -> str:
+        return "ERR" if isinstance(x, Exception) else ("OK" if x else "empty")
+    logger.info(
+        f"PREFETCH {domain}: heuristics={_tag(heur_out)} "
+        f"rdap={_tag(rdap_out)} resolve={_tag(resolve_out)} "
+        f"safe_browsing={_tag(sb_out)}"
+    )
 
     def _stringify(x) -> str:
         if isinstance(x, Exception):
