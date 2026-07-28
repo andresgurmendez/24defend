@@ -7,6 +7,7 @@ The agent decides which tools to call, interprets results, and returns
 a structured verdict: block / warn / allow with reasoning.
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -52,30 +53,23 @@ SYSTEM_PROMPT = """You are a cybersecurity domain investigation agent for 24Defe
 
 Your job: determine if a domain is FRAUDULENT (phishing/scam) or LEGITIMATE.
 
-You have tools to investigate. Use them strategically:
-1. Always start with `domain_heuristics` and `levenshtein_similarity` — they're instant and free.
-2. Use `dns_lookup` to check domain age AND registrant organization — new
-   domains (<30 days) impersonating banks are almost always phishing, and
-   a matching corporate registrant is strong legit-infra evidence.
-3. **MANDATORY** — Call `resolve_domain` BEFORE committing to a `block`
-   verdict for ANY domain that contains a whitelisted-brand keyword
-   (itau, brou, santander, scotiabank, bbva, hsbc, mercadopago,
-   mercadolibre, pedidosya, oca, prex, abitab, redpagos, antel,
-   movistar, claro, bps, dgi, etc.), regardless of the subdomain shape.
-   The tool returns the TLS certificate Subject Organization — which,
-   for a DigiCert/Sectigo/GlobalSign/Comodo-issued cert, is proof of
-   corporate ownership (paid CAs verify legal entity before issuance).
-   If the Subject Organization matches the brand (e.g.
-   O=Banco Itau Uruguay S.A. on itaulinkempresa.com.uy), the domain
-   IS legit and you must NOT block. Skipping resolve_domain and
-   blocking on the brand keyword alone has produced our worst FPs —
-   including flagging the real Itaú Uruguay business banking portal
-   as phishing.
-4. Use `ssl_certificate_check` for a deeper look at the certificate when
-   the resolve_domain summary isn't enough — free CAs on bank-impersonating
-   domains are a red flag.
-5. Use `google_search` if you need more context — zero results for a "bank" domain is very suspicious.
-6. Use `safe_browsing_check` for a definitive malware/phishing flag.
+Every investigation begins with PRE-FETCHED EVIDENCE inlined in the
+user message — this ALWAYS includes: domain_heuristics, dns_lookup
+(RDAP), resolve_domain (CNAME chain / IP owner / reverse DNS / TLS
+cert), and safe_browsing_check. Do NOT re-call those tools; the
+results are authoritative. Read the evidence, then reason.
+
+Additional tools you may call for follow-up:
+- `levenshtein_similarity` — compare against the whitelist domains
+  provided if you need more precise typosquat distance.
+- `ssl_certificate_check` — a deeper look at cert details if the
+  resolve_domain TLS summary needs more.
+- `google_search` — for context / brand verification / news about
+  the domain.
+
+Do NOT re-fetch domain_heuristics, dns_lookup, resolve_domain, or
+safe_browsing_check. Those already ran. Doubling up wastes calls
+and can produce inconsistent evidence.
 
 IMPORTANT CONTEXT:
 - The whitelist contains official domains of financial institutions in Uruguay and Latin America.
@@ -156,16 +150,28 @@ SIGNAL WEIGHTING:
   who actually operates the destination. Combine its signals; a
   single one is often not enough.
     STRONG legit signals (any of these):
-    • **DEFINITIVE**: TLS certificate Subject Organization matches the
-      brand named in the queried domain AND the certificate is issued
-      by a paid CA (DigiCert, Sectigo, GlobalSign, Comodo, Entrust,
-      GoDaddy). Paid CAs perform organization validation before
-      issuing certs with Subject O=<Legal Entity>. If the Subject O
-      says "Banco Itau Uruguay S.A." on an itau-labeled domain, the
-      domain IS Itaú. This overrides ALL brand-impersonation
-      heuristics. Do NOT block. Free-CA (Let's Encrypt / ZeroSSL)
-      certs are domain-validated only and this rule does NOT apply
-      to them.
+    • **VERY STRONG (but not absolute)**: TLS certificate has a populated
+      Subject Organization field, AND that Organization is plausibly the
+      SPECIFIC LEGAL ENTITY that operates the brand in that region.
+      Populated Subject O implies the CA performed Organization
+      Validation (OV) or Extended Validation (EV) — DV certs (including
+      DigiCert DV certs) leave Subject O blank. Cross-check Subject C
+      (country) against the domain's ccTLD.
+      Example: For itau-labeled .com.uy, Subject
+      "O=Banco Itau Uruguay S.A., C=UY" matches Banco Itau's real
+      Uruguayan legal entity. Prefer allow.
+      Counter-examples that must NOT be treated as legit:
+      - Subject O blank → this is a DV cert. Rule does not apply.
+        Fall back to other signals.
+      - Subject O contains the brand keyword but is a DIFFERENT legal
+        entity (e.g. "O=Itau Consulting LLC, C=US" on itau-labeled
+        UY domain). The keyword-match without the legal-entity match
+        is exactly what a phisher would set up. Weight this NEGATIVELY.
+      - Subject C mismatches the ccTLD without an obvious reason.
+      Historical caveat: CA mis-issuance / compromise has happened
+      (DigiNotar 2011, WoSign 2016, Symantec 2017). If Safe Browsing
+      returns a definitive hit or the site displays other clear
+      phishing behavior, block regardless of the cert.
     • CNAME chain terminates in <brand>.edgekey.net / .cloudfront.net
       / .azureedge.net / .fastly.net etc. AND <brand> matches the
       brand named in the queried subdomain — CDNs only issue such
@@ -378,13 +384,60 @@ async def investigate_domain(domain: str) -> DomainEntry:
     whitelist_entries = await scan_by_type(EntryType.whitelist)
     whitelist_domains = list(set(e.domain for e in whitelist_entries))
 
+    # Pre-fetch the evidence we ALWAYS want the agent to consider. Doing
+    # this in-process (in parallel) instead of leaving it to the LLM to
+    # decide has two big wins:
+    #   1. Guaranteed presence. The agent can't skip a tool it doesn't
+    #      feel like calling. This was the immediate cause of the
+    #      itaulinkempresa.com.uy FP — the agent had `resolve_domain`
+    #      available but never called it, so it never saw the DigiCert
+    #      "O=Banco Itau Uruguay S.A." Subject that would have proven
+    #      the domain legit.
+    #   2. Fewer LLM turns (cheaper + faster). One shot with all evidence
+    #      instead of N tool-call round-trips.
+    # The agent can still call the remaining tools (levenshtein_similarity,
+    # google_search, ssl_certificate_check) for follow-up questions.
+    from app.investigation.tools import (
+        domain_heuristics as _t_heur,
+        dns_lookup as _t_rdap,
+        resolve_domain as _t_resolve,
+        safe_browsing_check as _t_sb,
+    )
+    heur_task = asyncio.to_thread(_t_heur.invoke, {"domain": domain})
+    rdap_task = asyncio.to_thread(_t_rdap.invoke, {"domain": domain})
+    resolve_task = asyncio.to_thread(_t_resolve.invoke, {"domain": domain})
+    sb_task = asyncio.to_thread(_t_sb.invoke, {"domain": domain})
+    heur_out, rdap_out, resolve_out, sb_out = await asyncio.gather(
+        heur_task, rdap_task, resolve_task, sb_task,
+        return_exceptions=True,
+    )
+
+    def _stringify(x) -> str:
+        if isinstance(x, Exception):
+            return f"(tool errored: {type(x).__name__}: {x})"
+        return str(x) if x is not None else "(no output)"
+
+    prefetched = (
+        "PRE-FETCHED EVIDENCE (already collected — treat as authoritative,\n"
+        "do NOT re-fetch via tool calls):\n\n"
+        f"[domain_heuristics]\n{_stringify(heur_out)}\n\n"
+        f"[dns_lookup / RDAP]\n{_stringify(rdap_out)}\n\n"
+        f"[resolve_domain — CNAME chain, IP owner, PTR, TLS cert]\n"
+        f"{_stringify(resolve_out)}\n\n"
+        f"[safe_browsing_check]\n{_stringify(sb_out)}"
+    )
+
     # Build the initial message
     user_message = (
         f"Investigate this domain: {domain}\n\n"
         f"Known official (whitelisted) domains to compare against:\n"
         f"{json.dumps(whitelist_domains[:50])}\n\n"
-        f"Use your tools to determine if this domain is fraudulent. "
-        f"Start with heuristics and levenshtein_similarity."
+        f"{prefetched}\n\n"
+        f"Based on the evidence above, determine if this domain is\n"
+        f"fraudulent or legitimate. If you need additional context you\n"
+        f"may call: levenshtein_similarity, google_search,\n"
+        f"ssl_certificate_check. Do NOT re-call the four tools whose\n"
+        f"results are already inlined above."
     )
 
     initial_state: AgentState = {
