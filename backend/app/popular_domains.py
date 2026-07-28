@@ -76,6 +76,12 @@ VENDOR_ALLOWLIST: set[str] = {
     # (WM = Walmart-managed on Neustar UltraDNS). Agent got tricked by the
     # "www.walmart.com" prefix under a fresh unknown base domain.
     "cdn-wal.net",
+    # Itaú Uruguay product-specific portals. Verified via TLS cert Subject
+    # O=Banco Itau Uruguay S.A. (DigiCert-issued, ownership-verified).
+    # Agent flagged these as phishing with should_notify=true, which is
+    # the most damaging FP possible for a defender app (users told the
+    # real bank portal is fake).
+    "itaulink.com.uy", "itaulinkempresa.com.uy",
 }
 
 MAJESTIC_URL = "https://downloads.majestic.com/majestic_million.csv"

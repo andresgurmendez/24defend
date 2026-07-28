@@ -57,12 +57,20 @@ You have tools to investigate. Use them strategically:
 2. Use `dns_lookup` to check domain age AND registrant organization — new
    domains (<30 days) impersonating banks are almost always phishing, and
    a matching corporate registrant is strong legit-infra evidence.
-3. Use `resolve_domain` whenever the queried domain has a brand keyword in
-   a subdomain but the base domain isn't recognized. It follows CNAME
-   chains, reports the IP owner, reverse DNS, and TLS cert Subject/SAN.
-   This is the highest-yield tool for the "is <brand>.<unknown>.com/net
-   actually the brand's own CDN?" question — catches cases the RDAP
-   registrant lookup can't (CDN aliases, private-WHOIS registrants).
+3. **MANDATORY** — Call `resolve_domain` BEFORE committing to a `block`
+   verdict for ANY domain that contains a whitelisted-brand keyword
+   (itau, brou, santander, scotiabank, bbva, hsbc, mercadopago,
+   mercadolibre, pedidosya, oca, prex, abitab, redpagos, antel,
+   movistar, claro, bps, dgi, etc.), regardless of the subdomain shape.
+   The tool returns the TLS certificate Subject Organization — which,
+   for a DigiCert/Sectigo/GlobalSign/Comodo-issued cert, is proof of
+   corporate ownership (paid CAs verify legal entity before issuance).
+   If the Subject Organization matches the brand (e.g.
+   O=Banco Itau Uruguay S.A. on itaulinkempresa.com.uy), the domain
+   IS legit and you must NOT block. Skipping resolve_domain and
+   blocking on the brand keyword alone has produced our worst FPs —
+   including flagging the real Itaú Uruguay business banking portal
+   as phishing.
 4. Use `ssl_certificate_check` for a deeper look at the certificate when
    the resolve_domain summary isn't enough — free CAs on bank-impersonating
    domains are a red flag.
@@ -148,6 +156,16 @@ SIGNAL WEIGHTING:
   who actually operates the destination. Combine its signals; a
   single one is often not enough.
     STRONG legit signals (any of these):
+    • **DEFINITIVE**: TLS certificate Subject Organization matches the
+      brand named in the queried domain AND the certificate is issued
+      by a paid CA (DigiCert, Sectigo, GlobalSign, Comodo, Entrust,
+      GoDaddy). Paid CAs perform organization validation before
+      issuing certs with Subject O=<Legal Entity>. If the Subject O
+      says "Banco Itau Uruguay S.A." on an itau-labeled domain, the
+      domain IS Itaú. This overrides ALL brand-impersonation
+      heuristics. Do NOT block. Free-CA (Let's Encrypt / ZeroSSL)
+      certs are domain-validated only and this rule does NOT apply
+      to them.
     • CNAME chain terminates in <brand>.edgekey.net / .cloudfront.net
       / .azureedge.net / .fastly.net etc. AND <brand> matches the
       brand named in the queried subdomain — CDNs only issue such
@@ -159,7 +177,8 @@ SIGNAL WEIGHTING:
       "Walmart Inc." for a walmart-labeled subdomain).
     • TLS cert Subject CN or SAN list contains the real brand's
       canonical hostname (cert issuance requires domain-control proof
-      to the CA).
+      to the CA — but for a DEFINITIVE signal, prefer Subject O check
+      above; SAN matching alone can be defeated by a compromised CA).
     NEUTRAL / weak signals (must not weight as legit alone):
     • IP owner is a shared cloud/CDN (Cloudflare, Akamai, AWS/Amazon,
       Google LLC, Microsoft/Azure, Vercel, Netlify, Fastly, DigitalOcean,

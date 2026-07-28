@@ -25,7 +25,11 @@ public final class DomainChecker {
         "brou.com.uy",
         // Itaú — UY + regional. Chile serves under BOTH itau.cl AND itau.com.cl
         // (bare ccTLD and commercial form) — list both to skip the fuzzy check.
-        "itau.com.uy",
+        // Also include Itaú UY's product-specific portals under their own
+        // brand domains (itaulink = online banking, itaulinkempresa =
+        // business banking). Verified via TLS cert Subject
+        // O=Banco Itau Uruguay S.A.
+        "itau.com.uy", "itaulink.com.uy", "itaulinkempresa.com.uy",
         "itau.com.br", "itau.com.ar", "itau.cl", "itau.com.cl",
         "itau.com.co", "itau.com.py",
         // Santander — UY + regional. Same duplication for .cl variants.

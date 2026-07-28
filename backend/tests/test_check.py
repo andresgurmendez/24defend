@@ -229,6 +229,24 @@ class TestCheckEndpoint:
         assert data["verdict"] == "allow"
         assert data["source"] == "popular"
 
+    async def test_itaulinkempresa_regression(self, client, mock_get_table, fake_table):
+        """Regression: itaulinkempresa.com.uy is the REAL Itau Uruguay
+        business banking portal. TLS cert Subject O=Banco Itau Uruguay S.A.,
+        DigiCert-issued. Agent cached it as block with should_notify=true,
+        meaning users were told the real bank was phishing. Absolutely
+        the worst-case FP for a defender app. VENDOR_ALLOWLIST must
+        override the cached bad verdict."""
+        from app.popular_domains import reset_for_tests
+        reset_for_tests()
+
+        _seed_domain(fake_table, "www.itaulinkempresa.com.uy", "cache",
+                     verdict="block", confidence="0.92",
+                     reason="Bad agent verdict — actually the real Itau UY portal")
+        resp = await client.post("/check", json={"domain": "www.itaulinkempresa.com.uy"})
+        data = resp.json()
+        assert data["verdict"] == "allow"
+        assert data["source"] == "popular"
+
     async def test_walmart_cdn_regression(self, client, mock_get_table, fake_table):
         """Regression: www.walmart.com.cdn-wal.net is Walmart's own CDN
         alias (verified via DNS CNAME chain into www.walmart.com.edgekey.net
