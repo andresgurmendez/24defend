@@ -13,16 +13,31 @@ public final class PendingInvestigation {
 
     public static let shared = PendingInvestigation()
 
-    private struct Entry {
+    private struct Entry: Codable {
         let domain: String
         let submittedAt: Date
     }
 
-    private var pending: [Entry] = []
-    private let maxEntries = 20
-    private let expirySeconds: TimeInterval = 600 // 10 minutes
+    // Persistence: iOS restarts packet-tunnel extensions frequently (device
+    // sleep, network transitions, jetsam, etc.). Without persistence, every
+    // restart wipes `pending` and any yellow-flagged domain that hasn't
+    // resolved yet gets silently dropped — the user never sees a
+    // green/blue/red follow-up.
+    private static let suiteName = "group.com.24defend.app"
+    private static let storageKey = "pending_investigations_v1"
 
-    private init() {}
+    private var pending: [Entry] = []
+    // Bumped 20 → 50 so a burst of yellows doesn't evict older entries
+    // before their agent runs finish.
+    private let maxEntries = 50
+    // Bumped 600 → 1800 (30 min) so cold agent runs / rate-limit backoff
+    // still fire the resolution notification. If we truly can't decide in
+    // 30 min, silent-drop is the honest outcome.
+    private let expirySeconds: TimeInterval = 1800
+
+    private init() {
+        pending = Self.load()
+    }
 
     /// Record a domain that was silently submitted for investigation.
     public func add(domain: String) {
@@ -34,6 +49,7 @@ public final class PendingInvestigation {
         if pending.count > maxEntries {
             pending.removeFirst()
         }
+        save()
     }
 
     /// Result of a poll pass: which domains resolved to what.
@@ -97,6 +113,7 @@ public final class PendingInvestigation {
         }
 
         pending.removeAll { entry in toRemove.contains(entry.domain) }
+        save()
 
         return PollResult(
             confirmedThreats: confirmedThreats,
@@ -107,4 +124,21 @@ public final class PendingInvestigation {
 
     /// Number of domains currently pending.
     public var count: Int { pending.count }
+
+    // MARK: - Persistence
+
+    private func save() {
+        guard let defaults = UserDefaults(suiteName: Self.suiteName),
+              let data = try? JSONEncoder().encode(pending) else { return }
+        defaults.set(data, forKey: Self.storageKey)
+    }
+
+    private static func load() -> [Entry] {
+        guard let defaults = UserDefaults(suiteName: suiteName),
+              let data = defaults.data(forKey: storageKey),
+              let entries = try? JSONDecoder().decode([Entry].self, from: data) else {
+            return []
+        }
+        return entries
+    }
 }

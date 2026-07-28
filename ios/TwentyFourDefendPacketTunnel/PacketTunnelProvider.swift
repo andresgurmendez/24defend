@@ -9,12 +9,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private let upstreamDNS = "1.1.1.1"
     // Notification dedup by BASE DOMAIN (not exact hostname), so that
     // sorteo.brou.hk and www.sorteo.brou.hk are treated as one "site".
-    private var yellowNotified: Set<String> = []   // base domains that got a yellow this session
-    private var redNotified: Set<String> = []      // base domains that got a red this session
-    private var greenNotified: Set<String> = []    // base domains cleared by agent after yellow
-    private var checkedNotified: Set<String> = []  // base domains the agent examined and returned warn on
-    // Maps base domain -> the full domain string used in the yellow notification's
-    // identifier, so a follow-up green can REPLACE (not stack on top of) the yellow.
+    // Notification dedup + follow-up gating is BlockLog-backed because iOS
+    // routinely restarts packet-tunnel extensions (sleep/wake, network
+    // transitions, jetsam, etc.) and in-memory sets are wiped. Previously
+    // that meant no green/blue/red would ever fire for a yellow that got
+    // resolved on the backend after a restart. BlockLog is persisted to the
+    // app group's UserDefaults so it survives. See `hasEvent(for:severity:)`.
+    // yellowNotificationDomain is a session-only optimization for the green
+    // "replace-in-tray" identifier; falls back to `domain` if not present.
     private var yellowNotificationDomain: [String: String] = [:]
     private var runtimeBlacklist: Set<String> = []    // domains confirmed bad by backend
     private var httpListener: NWListener?
@@ -217,13 +219,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 }
 
                 // Cleared domains → GREEN closure notification, but ONLY if
-                // we already fired a yellow for that base domain. If we didn't,
-                // the user never saw a warning and a green would be noise.
+                // we already fired a yellow for that base domain. We check
+                // BlockLog (persisted) instead of the in-memory yellowNotified
+                // set so this works across tunnel restarts.
                 for domain in result.cleared {
                     let baseKey = BloomFilterStore.extractBaseDomain(domain.lowercased())
-                    guard self.yellowNotified.contains(baseKey),
-                          !self.redNotified.contains(baseKey),
-                          !self.greenNotified.contains(baseKey) else { continue }
+                    guard self.hasEvent(baseKey: baseKey, severity: .yellow),
+                          !self.hasEvent(baseKey: baseKey, severity: .red),
+                          !self.hasEvent(baseKey: baseKey, severity: .green) else { continue }
 
                     BlockLog.append(BlockEvent(
                         domain: domain,
@@ -239,17 +242,16 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     self.logger.info("CLEARED: \(domain) — agent confirmed legit; green sent")
                 }
 
-                // Inconclusive → CHECKED closure notification. Agent looked at
-                // the domain but couldn't confirm legit or fraud. Close the
-                // loop honestly instead of leaving the yellow hanging. Same
-                // guards as green: only fire if we yellow-notified this base
-                // and haven't already escalated to red or resolved to green.
+                // Inconclusive → CHECKED closure notification. Same guards as
+                // green: only fire if we yellow-notified this base (per
+                // BlockLog) and haven't already escalated to red or resolved
+                // to green or checked.
                 for domain in result.inconclusive {
                     let baseKey = BloomFilterStore.extractBaseDomain(domain.lowercased())
-                    guard self.yellowNotified.contains(baseKey),
-                          !self.redNotified.contains(baseKey),
-                          !self.greenNotified.contains(baseKey),
-                          !self.checkedNotified.contains(baseKey) else { continue }
+                    guard self.hasEvent(baseKey: baseKey, severity: .yellow),
+                          !self.hasEvent(baseKey: baseKey, severity: .red),
+                          !self.hasEvent(baseKey: baseKey, severity: .green),
+                          !self.hasEvent(baseKey: baseKey, severity: .checked) else { continue }
 
                     BlockLog.append(BlockEvent(
                         domain: domain,
@@ -281,12 +283,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         await PhishingClassifier.refreshWeights()
         logger.info("Classifier weights refreshed")
 
-        // Refresh daily blacklist on startup too
-        if DailyBlacklist.shared.needsRefresh {
-            logger.info("Refreshing daily blacklist...")
-            await DailyBlacklist.shared.refresh()
-            logger.info("Daily blacklist refreshed")
-        }
+        // Always refresh daily blacklist at tunnel start so the local copy
+        // matches the latest backend state. If we ONLY refreshed when
+        // needsRefresh returns true (age-based), a domain we allowlist
+        // server-side can still trigger red blocks on the client for up to
+        // 30 min (per-user cache TTL). Cheap network call, small payload.
+        logger.info("Refreshing daily blacklist (forced at tunnel start)...")
+        await DailyBlacklist.shared.refresh()
+        logger.info("Daily blacklist refreshed")
 
         // Clear verdict cache so new bloom/classifier data takes effect
         dnsCache.clear()
@@ -399,16 +403,51 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
 
-        // 4b. Daily blacklist: domains confirmed bad by backend investigation (polled every 30 min)
+        // 4b. Daily blacklist: domains confirmed bad by backend investigation
+        //     (refreshed every 30 min). We CONFIRM with the backend before
+        //     blocking — same pattern as the bloom-filter path (step 4) —
+        //     because a domain we allowlisted server-side can still be in
+        //     the client's local daily-blacklist copy for up to 30 min after
+        //     the allowlist decision. Without confirmation, users see red
+        //     block notifications for domains we've already deemed safe
+        //     (observed on pedidosya.dhmedia.io after we shipped the
+        //     dhmedia.io VENDOR_ALLOWLIST entry). Confirmation is a fast
+        //     DDB lookup (~50ms).
         if DailyBlacklist.shared.contains(domain) {
-            telemetry.recordBlock(domain: domain, layer: "daily_blacklist")
-            dnsCache.set(domain, verdict: .block)
-            logger.warning("BLOCKED (daily blacklist) \(domain)")
-            BlockLog.append(BlockEvent(domain: domain, reason: "Confirmed phishing by 24Defend analysis", severity: .red))
-            sendNotification(domain: domain, reason: "\(domain) is a confirmed phishing site", severity: .red)
-            let dnsResp = DNSPacket.buildBlockResponse(for: query)
-            let ipResp  = IPPacket.buildResponse(original: parsed, dnsResponse: dnsResp)
-            packetFlow.writePackets([ipResp], withProtocols: [proto])
+            telemetry.incrementBloomBlacklistHits()
+
+            if DailyBlacklist.shared.isFalsePositive(domain) {
+                dnsCache.set(domain, verdict: .allow)
+                forwardToUpstream(query: query, original: parsed, proto: proto)
+                return
+            }
+
+            Task {
+                let apiVerdict = await APIClient.checkDomain(domain)
+                if apiVerdict?.verdict == "block" {
+                    self.telemetry.recordBlock(domain: domain, layer: "daily_blacklist")
+                    self.dnsCache.set(domain, verdict: .block)
+                    self.runtimeBlacklist.insert(domain.lowercased())
+                    self.logger.warning("BLOCKED (daily blacklist + confirmed) \(domain)")
+                    BlockLog.append(BlockEvent(
+                        domain: domain,
+                        reason: apiVerdict?.reason ?? "Confirmed phishing by 24Defend analysis",
+                        severity: .red
+                    ))
+                    self.sendNotification(domain: domain, reason: "\(domain) is a confirmed phishing site", severity: .red)
+
+                    let dnsResp = DNSPacket.buildBlockResponse(for: query)
+                    let ipResp = IPPacket.buildResponse(original: parsed, dnsResponse: dnsResp)
+                    self.packetFlow.writePackets([ipResp], withProtocols: [proto])
+                } else {
+                    // Backend has since allowlisted this domain (or the
+                    // agent reversed the verdict). Don't block. Cache the
+                    // allow so subsequent queries this session are fast.
+                    self.dnsCache.set(domain, verdict: .allow)
+                    self.logger.info("DAILY BLACKLIST STALE: \(domain) — API says allow")
+                    self.forwardToUpstream(query: query, original: parsed, proto: proto)
+                }
+            }
             return
         }
 
@@ -699,39 +738,40 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
 
-        // Session dedup by BASE DOMAIN — one yellow, one red, one green per
-        // "site" per session. `sorteo.brou.hk` and `www.sorteo.brou.hk` share
-        // the same base (brou.hk) so the user gets ONE of each, not four.
-        // Red always allowed once even if yellow already fired (escalation).
-        // Green fires only if yellow already fired and no red has escalated it.
+        // Cross-session dedup by BASE DOMAIN via BlockLog (persisted). One
+        // yellow, one red, one green, one checked per "site" persists across
+        // tunnel restarts. `sorteo.brou.hk` and `www.sorteo.brou.hk` share
+        // the base `brou.hk` so the user gets ONE of each, not four. Red
+        // always allowed once even if yellow already fired (escalation);
+        // green/checked only fire if yellow already fired and no red has
+        // escalated it.
         let baseKey = BloomFilterStore.extractBaseDomain(domain.lowercased())
         switch severity {
         case .yellow:
-            if yellowNotified.contains(baseKey) || redNotified.contains(baseKey) {
+            if hasEvent(baseKey: baseKey, severity: .yellow)
+                || hasEvent(baseKey: baseKey, severity: .red) {
                 logger.info("Suppressed yellow for \(domain) — already notified about \(baseKey)")
                 return
             }
-            yellowNotified.insert(baseKey)
             yellowNotificationDomain[baseKey] = domain
         case .red:
-            if redNotified.contains(baseKey) {
+            if hasEvent(baseKey: baseKey, severity: .red) {
                 logger.info("Suppressed red for \(domain) — already escalated \(baseKey)")
                 return
             }
-            redNotified.insert(baseKey)
         case .green:
-            if greenNotified.contains(baseKey) || redNotified.contains(baseKey) {
+            if hasEvent(baseKey: baseKey, severity: .green)
+                || hasEvent(baseKey: baseKey, severity: .red) {
                 logger.info("Suppressed green for \(domain) — already resolved \(baseKey)")
                 return
             }
-            greenNotified.insert(baseKey)
         case .checked:
-            if checkedNotified.contains(baseKey) || redNotified.contains(baseKey)
-                || greenNotified.contains(baseKey) {
+            if hasEvent(baseKey: baseKey, severity: .checked)
+                || hasEvent(baseKey: baseKey, severity: .red)
+                || hasEvent(baseKey: baseKey, severity: .green) {
                 logger.info("Suppressed checked for \(domain) — already resolved \(baseKey)")
                 return
             }
-            checkedNotified.insert(baseKey)
         }
 
         let content = UNMutableNotificationContent()
@@ -807,5 +847,23 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 self.logger.error("Notification error: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Persistent replacement for the old in-memory {yellow,red,green,checked}
+    /// Notified sets. Answers "did we fire severity X for base domain Y at
+    /// any point in the recent past?" — sourced from BlockLog which is
+    /// stored in the app group's UserDefaults and survives tunnel restarts.
+    ///
+    /// Time window (48h) is intentional: we don't want a 2-week-old yellow to
+    /// prevent a fresh yellow that would legitimately re-warn the user.
+    private func hasEvent(baseKey: String, severity: EventSeverity) -> Bool {
+        let cutoff = Date().addingTimeInterval(-48 * 3600)
+        for event in BlockLog.load() {
+            if event.timestamp < cutoff { break } // BlockLog is stored newest-first
+            if event.severity != severity { continue }
+            let eventBase = BloomFilterStore.extractBaseDomain(event.domain.lowercased())
+            if eventBase == baseKey { return true }
+        }
+        return false
     }
 }

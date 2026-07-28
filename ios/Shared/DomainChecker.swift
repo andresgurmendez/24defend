@@ -87,6 +87,15 @@ public final class DomainChecker {
             return .allowed
         }
 
+        // mDNS / DNS-SD / Bonjour service-discovery records:
+        // any label starting with `_` (e.g. _aaplcache._tcp.example.com,
+        // lb._dns-sd._udp.example.com, _srv._tcp.example.com). These are
+        // never web-browsable and must not participate in similarity /
+        // brand-impersonation checks.
+        if normalized.split(separator: ".").contains(where: { $0.hasPrefix("_") }) {
+            return .allowed
+        }
+
         // 1. Exact blacklist match
         if blacklist.contains(normalized) {
             return .blocked(reason: "Known phishing domain")
@@ -106,16 +115,40 @@ public final class DomainChecker {
             }
         }
 
-        // 4. BK-tree fuzzy search: find whitelist domains within edit distance 3
+        // 4. BK-tree fuzzy search — but compare on the BRAND LABEL only
+        // (the part before the public suffix), not the full base domain.
+        // The shared `.com.uy` / `.com.ar` / `.com` suffix used to dominate
+        // the similarity score and produce heavy FPs on unrelated LATAM
+        // domains: `dusa.com.uy` vs `bbva.com.uy` scored 0.727 → yellow;
+        // `vera.com.uy` vs `bbva.com.uy` scored 0.727; `ute` vs `antel`
+        // similar. Comparing just `dusa` vs `bbva` (edit distance 3, max
+        // length 4, similarity 0.25) or `ute` vs `antel` (distance 5, max
+        // length 5, similarity 0.0) correctly drops all of them below
+        // threshold while still catching real typosquats like `brou`→`br0u`.
+        //
+        // Guardrails:
+        //   - max edit distance 2 (was 3) — reduces overreach.
+        //   - min compared-label length 4 chars — short labels (`ute`,
+        //     `clt`, `dgi`) have too few characters for edit distance to
+        //     be a meaningful similarity signal.
+        //   - similarity threshold 0.75 (was 0.70) — slight tightening
+        //     on top of the label-only compare, still catches 1-char typos
+        //     on 4-char brand names.
         let baseDomain = BloomFilterStore.extractBaseDomain(normalized)
+        let queryLabel = brandLabel(of: baseDomain)
         let matches = whitelistTree.search(baseDomain, maxDistance: 3)
 
         for (match, distance) in matches {
             guard distance > 0 else { continue }
-            let maxLen = max(baseDomain.count, match.count)
+            let matchLabel = brandLabel(of: match)
+            let labelDistance = levenshtein(queryLabel, matchLabel)
+            if labelDistance > 2 { continue }
+            let shorter = min(queryLabel.count, matchLabel.count)
+            if shorter < 4 { continue }
+            let maxLen = max(queryLabel.count, matchLabel.count)
             guard maxLen > 0 else { continue }
-            let similarity = 1.0 - (Double(distance) / Double(maxLen))
-            if similarity >= 0.70 {
+            let similarity = 1.0 - (Double(labelDistance) / Double(maxLen))
+            if similarity >= 0.75 {
                 return .warned(reason: "Unverified domain similar to \(match)")
             }
         }
@@ -206,5 +239,60 @@ public final class DomainChecker {
         // O(1) Set lookup via base domain extraction instead of O(n) suffix scan
         let base = BloomFilterStore.extractBaseDomain(domain)
         return infrastructureSet.contains(base)
+    }
+
+    // MARK: - BK-tree fuzzy match helpers
+
+    /// Extract just the brand label from a base domain — i.e. the leftmost
+    /// label BEFORE the public suffix. `bbva.com.uy` → `"bbva"`; `google.com`
+    /// → `"google"`; `itau.cl` → `"itau"`. Used so BK-tree similarity
+    /// compares brand-to-brand, not brand+TLD-to-brand+TLD (which used to
+    /// inflate scores because of the shared `.com.uy` etc.).
+    static func brandLabel(of baseDomain: String) -> String {
+        // Ordered longest-first so `com.uy` wins over `uy` on `bbva.com.uy`.
+        // Non-exhaustive; covers the TLDs actually present in the whitelist.
+        let twoPartSuffixes = [
+            "com.uy", "com.ar", "com.br", "com.mx", "com.co", "com.pe",
+            "com.py", "com.bo", "com.pa", "com.cl", "com.ve", "com.ec",
+            "co.uk", "co.jp",
+        ]
+        for suffix in twoPartSuffixes {
+            let marker = "." + suffix
+            if baseDomain.hasSuffix(marker) {
+                return String(baseDomain.dropLast(marker.count))
+            }
+            if baseDomain == suffix { return "" }
+        }
+        // Single-part TLD (e.g. .com, .net, .cl on its own, .tv):
+        if let dotIndex = baseDomain.firstIndex(of: ".") {
+            return String(baseDomain[baseDomain.startIndex..<dotIndex])
+        }
+        return baseDomain
+    }
+
+    /// Classic iterative Levenshtein — small strings, no allocations
+    /// beyond two int rows. Used to compare brand labels only.
+    static func levenshtein(_ a: String, _ b: String) -> Int {
+        let ac = Array(a)
+        let bc = Array(b)
+        let m = ac.count
+        let n = bc.count
+        if m == 0 { return n }
+        if n == 0 { return m }
+        var prev = Array(0...n)
+        var curr = Array(repeating: 0, count: n + 1)
+        for i in 1...m {
+            curr[0] = i
+            for j in 1...n {
+                let cost = ac[i - 1] == bc[j - 1] ? 0 : 1
+                curr[j] = Swift.min(
+                    prev[j] + 1,
+                    curr[j - 1] + 1,
+                    prev[j - 1] + cost
+                )
+            }
+            swap(&prev, &curr)
+        }
+        return prev[n]
     }
 }
