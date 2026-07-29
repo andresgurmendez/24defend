@@ -780,11 +780,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         case .red:
             if force {
                 // Retroactive escalation — page loaded, then agent confirmed phishing.
-                // We don't know which brand the user was tricked into, so keep it generic
-                // and actionable — tell them to change whatever they entered on the real
-                // site of that brand.
+                // Deliberately non-prescriptive: we don't know what the user
+                // entered (password? DNI? card number? nothing at all?) so
+                // "cambiá tu contraseña" is often wrong AND confusing. The
+                // institution that was being impersonated has proper channels
+                // (block the card, reset the account, monitor activity) —
+                // route the user there instead of us guessing.
                 content.title = "Sitio fraudulento confirmado"
-                content.body = "\(domain) — Si ingresaste algún dato, cambiálo en el sitio o app oficial de la marca."
+                content.body = "\(domain) — Si ingresaste datos personales, consultá con la institución pertinente."
             } else {
                 // Immediate block — known bad from blacklist / bloom+backend confirm
                 content.title = "Sitio de phishing bloqueado"

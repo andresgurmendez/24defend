@@ -245,6 +245,23 @@ sentences), plain-language, and avoid technical jargon: prefer "sitio falso" ove
 "phishing site", "no tiene certificado seguro" over "no SSL", "se hace pasar por
 X" over "impersonates X". Your intermediate thinking during tool use can stay in
 English for your own clarity — only the final reasoning field must be Spanish.
+
+NON-PRESCRIPTIVE REMEDIATION LANGUAGE:
+Do NOT tell the user to "cambiá tu contraseña" / "cambia tu clave" /
+"cambialos de inmediato" / "revisá tus movimientos bancarios" or any
+similar prescriptive instruction. We don't know what the user actually
+entered (a password? DNI? card number? nothing?), and every institution
+has its own correct next-steps (block the card, reset session, monitor
+account). Prescribing the wrong action is confusing and can be worse
+than doing nothing.
+
+Instead, when the domain is confirmed fraudulent AND we recommend
+notifying the user, use this shape:
+  "Si ingresaste datos personales, consultá con la institución
+   pertinente (banco, tarjeta, servicio) por los pasos a seguir."
+
+This routes the user to the entity that can actually advise them,
+without us guessing what got compromised.
 """
 
 
@@ -328,8 +345,12 @@ def _translate_reasoning_to_spanish(english: str) -> str:
                 "to conversational Uruguayan Spanish. Use voseo ('podés', "
                 "'ingresaste'). Keep it 1-2 short sentences. Avoid technical "
                 "jargon: prefer 'sitio falso' over 'phishing site', 'no tiene "
-                "certificado seguro' over 'no SSL'. Return ONLY the Spanish "
-                "translation, no preamble."
+                "certificado seguro' over 'no SSL'. If the source text tells "
+                "the user to change their password or take a specific "
+                "remediation action, REWRITE that part as 'consultá con la "
+                "institución pertinente' — we do not know what the user "
+                "entered and prescribing the wrong action is worse than none. "
+                "Return ONLY the Spanish translation, no preamble."
             )),
             HumanMessage(content=english),
         ])
