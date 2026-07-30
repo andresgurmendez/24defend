@@ -229,6 +229,23 @@ class TestCheckEndpoint:
         assert data["verdict"] == "allow"
         assert data["source"] == "popular"
 
+    async def test_mercadoclics_regression(self, client, mock_get_table, fake_table):
+        """Regression: print1.mercadoclics.com was cached as block by an
+        old agent run (pre-fetch not yet enabled). mercadoclics.com is
+        MercadoLibre's legacy pay-per-click ad platform — registered
+        2008, AWS-hosted, ACM wildcard cert. VENDOR_ALLOWLIST must
+        override the stale cache."""
+        from app.popular_domains import reset_for_tests
+        reset_for_tests()
+
+        _seed_domain(fake_table, "print1.mercadoclics.com", "cache",
+                     verdict="block", confidence="0.87",
+                     reason="Bad old-agent verdict — mercadoclics is MercadoLibre's ad platform")
+        resp = await client.post("/check", json={"domain": "print1.mercadoclics.com"})
+        data = resp.json()
+        assert data["verdict"] == "allow"
+        assert data["source"] == "popular"
+
     async def test_itaulinkempresa_regression(self, client, mock_get_table, fake_table):
         """Regression: itaulinkempresa.com.uy is the REAL Itau Uruguay
         business banking portal. TLS cert Subject O=Banco Itau Uruguay S.A.,

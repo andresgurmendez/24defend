@@ -82,6 +82,14 @@ VENDOR_ALLOWLIST: set[str] = {
     # the most damaging FP possible for a defender app (users told the
     # real bank portal is fake).
     "itaulink.com.uy", "itaulinkempresa.com.uy",
+    # MercadoLibre's legacy pay-per-click ad platform ("Mercado Clics").
+    # Verified as legit corporate infra: registered 2008-10-02 (17+ yr),
+    # AWS-hosted (Route 53 NS, ACM wildcard cert, CloudFront edge in
+    # Buenos Aires). Old cached agent verdict blocked print1.mercadoclics.com
+    # on brand-substring match ("mercado" in domain). Agent with pre-fetch
+    # correctly returns warn on the base now, but the subdomain cache from
+    # the earlier over-eager agent still bites.
+    "mercadoclics.com",
 }
 
 MAJESTIC_URL = "https://downloads.majestic.com/majestic_million.csv"
