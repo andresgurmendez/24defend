@@ -317,6 +317,28 @@ silent drop. Different copy from the warn case: "No pudimos
 completar la revisión de <domain> — puede haber sido un problema
 de red. Andá con cuidado." Small change.
 
+### Cache de veredictos envenenados del período pre-hardening
+
+Entre el 2026-07-26 (deploy de resolve_domain) y el 2026-07-28 20:00
+aprox (deploy de la regla MANDATORY resolve_domain + DEFINITIVE TLS
+Subject O como señal legit), el agente tenía la evidencia pero no
+la regla dura de usarla. Cacheó veredictos `block` con
+`should_notify=true` en dominios legítimos (ej: `print1.mercadoclics.com`,
+que hoy con el prompt hardened el agente probablemente no bloquearía).
+
+TTL de esos entries: ~60 días desde `checked_at`. Sin intervención,
+usuarios verán rojos por dominios legítimos hasta ~2026-09-24.
+
+Fix idea: script one-shot que scanee la tabla DDB filtrando
+`entry_type=cache AND verdict=block AND should_notify=true AND
+checked_at < '2026-07-28T20:00Z'`, y para cada match:
+1. Verificar si el base domain ya está en VENDOR_ALLOWLIST → si sí, borrar entry.
+2. Re-invocar el agente actual → si devuelve allow/warn, borrar/reemplazar.
+3. Si el agente todavía dice block, dejar como está.
+
+Alternativa manual: cada FP reportado se agrega a VENDOR_ALLOWLIST
+(lo que estamos haciendo). Menos completo pero cero riesgo.
+
 ## Notes
 
 - Add issues here as we hit them. When this file has more than 10-15
