@@ -39,6 +39,11 @@ public struct SessionStats: Codable {
     public var apiCalls: Int = 0
     public var blocks: Int = 0
     public var warns: Int = 0
+    // Upstream DNS failed on ALL configured servers (1.1.1.1 → 8.8.8.8 →
+    // 9.9.9.9). A non-zero value here on a given session means the user
+    // was losing internet on some queries. Tracks the "no internet"
+    // symptom quantitatively so we can measure it in prod.
+    public var upstreamAllFailed: Int = 0
     public var periodSeconds: Int = 3600
 
     enum CodingKeys: String, CodingKey {
@@ -172,6 +177,10 @@ public final class TelemetryClient {
 
     public func incrementAPICalls() {
         queue.async { self.stats.apiCalls += 1 }
+    }
+
+    public func incrementUpstreamAllFailed() {
+        queue.async { self.stats.upstreamAllFailed += 1 }
     }
 
     // MARK: - Upload timer
