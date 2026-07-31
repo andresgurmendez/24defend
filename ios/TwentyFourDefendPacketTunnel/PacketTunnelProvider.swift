@@ -54,6 +54,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     override func startTunnel(options: [String: NSObject]? = nil, completionHandler: @escaping (Error?) -> Void) {
         logger.info("Starting 24Defend DNS filter tunnel")
+        DiagnosticLog.record(.tunnel, "startTunnel — extension launched")
 
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
 
@@ -109,8 +110,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             let availableMB = Double(availableBytes) / 1_048_576.0
             if availableMB < 3.0 {
                 self.logger.warning("MEMORY LOW: \(availableMB, format: .fixed(precision: 2))MB available")
+                DiagnosticLog.record(.memory, String(format: "LOW %.2f MB available", availableMB))
             } else {
                 self.logger.info("MEMORY: \(availableMB, format: .fixed(precision: 2))MB available")
+                // Skip diagnostic log for the common non-low case — it fires every 60s
+                // and would fill the 500-entry buffer with noise.
             }
         }
         timer.resume()
@@ -160,6 +164,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             }
         }()
         logger.info("Stopping tunnel (reason=\(reason.rawValue) \(name))")
+        DiagnosticLog.record(.tunnel, "stopTunnel — reason=\(reason.rawValue) (\(name))")
 
         refreshTimer?.cancel()
         refreshTimer = nil
@@ -558,7 +563,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     ) {
         guard upstreamIndex < upstreamDNSList.count else {
             telemetry.incrementUpstreamAllFailed()
-            logger.error("All upstream DNS servers failed — dropping query. This is the user-facing 'no internet' symptom.")
+            let msg = "All upstream DNS servers failed for '\(query.domainName)' — dropping. User-facing 'no internet' symptom."
+            logger.error("\(msg)")
+            DiagnosticLog.record(.dnsUpstream, msg)
             return
         }
         let upstream = upstreamDNSList[upstreamIndex]
@@ -584,6 +591,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             guard let self, claimCompletion() else { return }
             conn.cancel()
             self.logger.warning("DNS upstream \(upstream) timed out after \(self.upstreamTimeoutSeconds)s — trying next")
+            DiagnosticLog.record(.dnsUpstream, "TIMEOUT after \(self.upstreamTimeoutSeconds)s on \(upstream) for '\(query.domainName)' — cascading to next upstream")
             self.forwardToUpstream(
                 query: query, original: original, proto: proto,
                 upstreamIndex: upstreamIndex + 1
@@ -604,6 +612,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                             timeoutItem.cancel()
                             conn.cancel()
                             self.logger.warning("DNS send to \(upstream) errored (\(error.localizedDescription)) — trying next")
+                            DiagnosticLog.record(.dnsUpstream, "SEND ERROR on \(upstream): \(error.localizedDescription) — cascading")
                             self.forwardToUpstream(
                                 query: query, original: original, proto: proto,
                                 upstreamIndex: upstreamIndex + 1
@@ -627,6 +636,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                                 timeoutItem.cancel()
                                 conn.cancel()
                                 self.logger.warning("DNS upstream \(upstream) returned empty response — trying next")
+                                DiagnosticLog.record(.dnsUpstream, "EMPTY RESPONSE from \(upstream) for '\(query.domainName)' — cascading")
                                 self.forwardToUpstream(
                                     query: query, original: original, proto: proto,
                                     upstreamIndex: upstreamIndex + 1
@@ -639,6 +649,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 if claimCompletion() {
                     timeoutItem.cancel()
                     self.logger.warning("DNS upstream \(upstream) connection failed (\(error.localizedDescription)) — trying next")
+                    DiagnosticLog.record(.dnsUpstream, "CONN FAILED to \(upstream): \(error.localizedDescription) — cascading")
                     self.forwardToUpstream(
                         query: query, original: original, proto: proto,
                         upstreamIndex: upstreamIndex + 1
@@ -941,6 +952,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
                 self.logger.error("Notification error: \(error.localizedDescription)")
+                DiagnosticLog.record(.notification, "ERROR firing \(severity.rawValue) for \(domain): \(error.localizedDescription)")
+            } else {
+                DiagnosticLog.record(.notification, "FIRED \(severity.rawValue) for \(domain) — reason: \(reason)")
             }
         }
     }

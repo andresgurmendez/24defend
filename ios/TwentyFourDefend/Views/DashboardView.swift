@@ -6,6 +6,14 @@ struct DashboardView: View {
     @State private var showLog = false
     @State private var showDisclosure = false
 
+    // Hidden diagnostic panel: 7 rapid taps on the shield icon (inspired by
+    // Android's "tap the build number 7 times" for developer options). Not
+    // linked from any user-visible UI — testers and internal users learn it
+    // via docs. Timer resets tap count if there's a > 2s pause.
+    @State private var shieldTapCount = 0
+    @State private var lastShieldTap = Date.distantPast
+    @State private var showDiagnostic = false
+
     // Persists across app launches. Once the user has explicitly accepted the
     // VPN data-collection disclosure once, we don't show the sheet again.
     // Required by Apple Guideline 5.4 — the user must see a plain-language
@@ -17,11 +25,13 @@ struct DashboardView: View {
             VStack(spacing: 32) {
                 Spacer()
 
-                // Shield
+                // Shield — also the hidden diagnostic-panel trigger (7 taps).
                 Image(systemName: vpn.isConnected ? "checkmark.shield.fill" : "shield.slash")
                     .font(.system(size: 80))
                     .foregroundStyle(vpn.isConnected ? .green : .secondary)
                     .animation(.easeInOut, value: vpn.isConnected)
+                    .contentShape(Rectangle())
+                    .onTapGesture { registerShieldTap() }
 
                 Text(vpn.status)
                     .font(.title2.weight(.semibold))
@@ -93,8 +103,27 @@ struct DashboardView: View {
                     Task { await vpn.toggle() }
                 }
             }
+            .sheet(isPresented: $showDiagnostic) {
+                DiagnosticView()
+            }
             .onAppear { blockLog = BlockLog.load() }
             .refreshable { blockLog = BlockLog.load() }
+        }
+    }
+
+    /// 7 rapid taps (each within 2s of the previous) opens the diagnostic
+    /// panel. Any pause longer than 2s resets the counter.
+    private func registerShieldTap() {
+        let now = Date()
+        if now.timeIntervalSince(lastShieldTap) > 2.0 {
+            shieldTapCount = 1
+        } else {
+            shieldTapCount += 1
+        }
+        lastShieldTap = now
+        if shieldTapCount >= 7 {
+            shieldTapCount = 0
+            showDiagnostic = true
         }
     }
 
