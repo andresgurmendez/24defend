@@ -7,20 +7,31 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private let logger = Logger(subsystem: "com.24defend.app.packet-tunnel", category: "dns")
 
-    // Upstream DNS servers, tried in order with failover. If 1.1.1.1 is
-    // blocked / unreachable / silently drops packets (observed on some
-    // corporate WiFi, hotel networks, and certain LATAM carriers at peak),
-    // we cascade to 8.8.8.8 and then 9.9.9.9. Without this failover the
-    // user loses internet completely on any network that blocks 1.1.1.1 —
-    // reported by the founding team as a P0 business blocker on 2026-07-31.
+    // Upstream DNS servers. All three are fired in PARALLEL for every
+    // query (see forwardToUpstream); the first response wins and the
+    // others are cancelled. This replaces the previous sequential
+    // cascade (build 10), which was too slow: during a network drop
+    // where ALL upstreams timeout, sequential cost was 3 × 2 s = 6 s
+    // per query. Real-user diagnostic log on 2026-08-01 showed bursts
+    // of 15-30 s during network transitions where every query paid
+    // that full 6 s cost — making it look like "no internet" to the
+    // user, since browsers give up at 5 s.
     private let upstreamDNSList = ["1.1.1.1", "8.8.8.8", "9.9.9.9"]
 
-    // Hard timeout per upstream. UDP is connectionless, so a silently
-    // dropped packet leaves the receive callback pending forever without
-    // this timer. 2s is generous for a working upstream (< 30ms typical)
-    // and cascades to the next server before the user's browser gives up
-    // (~5s default resolver timeout in most stacks).
-    private let upstreamTimeoutSeconds: TimeInterval = 2.0
+    // Hard timeout per query (applies to the whole parallel race,
+    // not per-upstream). Cloudflare/Google/Quad9 all respond in
+    // < 50 ms typically; 800 ms is 15× the p95 for a healthy path,
+    // enough tolerance for jitter but 7.5× faster than the old 2 s
+    // when the network is genuinely dead.
+    private let upstreamTimeoutSeconds: TimeInterval = 0.8
+
+    // Monitor iOS's own view of network reachability. When it reports
+    // .unsatisfied (no interface available — WiFi off + no cellular,
+    // airplane mode, or between-network handoffs), we drop DNS queries
+    // instantly instead of paying the 800 ms timeout on each. This is
+    // the near-zero-cost fast-path for "the network is genuinely down."
+    private let pathMonitor = NWPathMonitor()
+    private var currentPathStatus: Network.NWPath.Status = .satisfied
     // Notification dedup by BASE DOMAIN (not exact hostname), so that
     // sorteo.brou.hk and www.sorteo.brou.hk are treated as one "site".
     // Notification dedup + follow-up gating is BlockLog-backed because iOS
@@ -55,6 +66,18 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     override func startTunnel(options: [String: NSObject]? = nil, completionHandler: @escaping (Error?) -> Void) {
         logger.info("Starting 24Defend DNS filter tunnel")
         DiagnosticLog.record(.tunnel, "startTunnel — extension launched")
+
+        // Watch the underlying network path so we can short-circuit DNS
+        // queries when there's genuinely no interface available.
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            guard let self else { return }
+            let previous = self.currentPathStatus
+            self.currentPathStatus = path.status
+            if previous != path.status {
+                DiagnosticLog.record(.tunnel, "Network path changed: \(previous) → \(path.status)")
+            }
+        }
+        pathMonitor.start(queue: .global(qos: .utility))
 
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
 
@@ -174,6 +197,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         investigationTimer = nil
         memoryTimer?.cancel()
         memoryTimer = nil
+        pathMonitor.cancel()
         telemetry.stopAndFlush()
         completionHandler()
     }
@@ -543,124 +567,108 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     // MARK: - Upstream forwarding
 
-    private func forwardToUpstream(query: DNSPacket.Query, original: IPPacket.Parsed, proto: NSNumber) {
-        forwardToUpstream(query: query, original: original, proto: proto, upstreamIndex: 0)
-    }
-
-    /// Send `query` to `upstreamDNSList[upstreamIndex]` with a hard timeout;
-    /// on any failure (connection failed, send error, timeout, empty
-    /// response) cascade to the next upstream. If all upstreams fail,
-    /// increment telemetry and drop — the client will retry on its own.
+    /// Race the query against all upstream DNS servers in parallel. First
+    /// response wins; the others get cancelled. If ALL time out within
+    /// `upstreamTimeoutSeconds`, we drop the query.
     ///
-    /// Race guard: exactly ONE of {receive, send-error, .failed state,
-    /// timeout} must trigger the cascade. We use an atomic flag flipped
-    /// under NSLock to ensure that.
-    private func forwardToUpstream(
-        query: DNSPacket.Query,
-        original: IPPacket.Parsed,
-        proto: NSNumber,
-        upstreamIndex: Int
-    ) {
-        guard upstreamIndex < upstreamDNSList.count else {
+    /// Why parallel instead of the previous sequential cascade: real-user
+    /// diagnostic logs (2026-08-01) showed 15-30 s bursts where the network
+    /// path was genuinely dead (all three upstreams timing out for every
+    /// domain, across Apple / Microsoft / Meta / Anthropic / etc). Sequential
+    /// cascade cost 3 × 2 s = 6 s per query in that state. Parallel race
+    /// costs one 800 ms window regardless of upstream count, so the user's
+    /// browser gets its "no answer" and can retry ~7.5× faster — critical
+    /// because most browsers give up at 5 s.
+    ///
+    /// Path monitor short-circuit: if iOS reports the network is
+    /// unsatisfied (no interface up), drop the query immediately without
+    /// wasting the 800 ms — during airplane mode / handoffs this saves
+    /// piling up hundreds of pending queries.
+    private func forwardToUpstream(query: DNSPacket.Query, original: IPPacket.Parsed, proto: NSNumber) {
+        if currentPathStatus == .unsatisfied {
             telemetry.incrementUpstreamAllFailed()
-            let msg = "All upstream DNS servers failed for '\(query.domainName)' — dropping. User-facing 'no internet' symptom."
-            logger.error("\(msg)")
-            DiagnosticLog.record(.dnsUpstream, msg)
+            DiagnosticLog.record(.dnsUpstream, "PATH UNSATISFIED — dropping '\(query.domainName)' immediately (no network interface available)")
             return
         }
-        let upstream = upstreamDNSList[upstreamIndex]
-        let conn = NWConnection(
-            host: NWEndpoint.Host(upstream),
-            port: 53,
-            using: .udp
-        )
 
-        // Race guard: whichever callback fires first "wins" and gets to
-        // either write the response OR cascade to the next upstream.
+        // Race guard: whoever writes the response first wins; others are
+        // no-ops. Also cancels all sibling connections so we don't leak
+        // sockets waiting on a race we already lost.
         let doneLock = NSLock()
         var done = false
+        var connections: [NWConnection] = []
         func claimCompletion() -> Bool {
             doneLock.lock(); defer { doneLock.unlock() }
             if done { return false }
             done = true
             return true
         }
+        func cancelAll() {
+            for c in connections { c.cancel() }
+        }
 
-        // Timeout — cascades to next upstream on expiry.
+        // Whole-race timeout. If nothing responds within this window,
+        // drop the query and log the failure across all upstreams.
         let timeoutItem = DispatchWorkItem { [weak self] in
             guard let self, claimCompletion() else { return }
-            conn.cancel()
-            self.logger.warning("DNS upstream \(upstream) timed out after \(self.upstreamTimeoutSeconds)s — trying next")
-            DiagnosticLog.record(.dnsUpstream, "TIMEOUT after \(self.upstreamTimeoutSeconds)s on \(upstream) for '\(query.domainName)' — cascading to next upstream")
-            self.forwardToUpstream(
-                query: query, original: original, proto: proto,
-                upstreamIndex: upstreamIndex + 1
-            )
+            cancelAll()
+            self.telemetry.incrementUpstreamAllFailed()
+            let servers = self.upstreamDNSList.joined(separator: ", ")
+            self.logger.error("All upstreams (\(servers)) timed out on '\(query.domainName)' — network path likely degraded")
+            DiagnosticLog.record(.dnsUpstream, "ALL UPSTREAMS TIMEOUT (\(self.upstreamTimeoutSeconds)s) for '\(query.domainName)' — likely network path issue, dropped")
         }
         DispatchQueue.global(qos: .userInteractive).asyncAfter(
             deadline: .now() + upstreamTimeoutSeconds,
             execute: timeoutItem
         )
 
-        conn.stateUpdateHandler = { [weak self] state in
-            guard let self else { return }
-            switch state {
-            case .ready:
-                conn.send(content: query.fullDNSData, completion: .contentProcessed { error in
-                    if let error {
-                        if claimCompletion() {
-                            timeoutItem.cancel()
+        for upstream in upstreamDNSList {
+            let conn = NWConnection(
+                host: NWEndpoint.Host(upstream),
+                port: 53,
+                using: .udp
+            )
+            connections.append(conn)
+
+            conn.stateUpdateHandler = { [weak self] state in
+                guard let self else { return }
+                switch state {
+                case .ready:
+                    conn.send(content: query.fullDNSData, completion: .contentProcessed { error in
+                        if error != nil {
+                            // Don't touch the race here — one upstream
+                            // erroring on send doesn't mean the others
+                            // will. Let this connection drop silently.
                             conn.cancel()
-                            self.logger.warning("DNS send to \(upstream) errored (\(error.localizedDescription)) — trying next")
-                            DiagnosticLog.record(.dnsUpstream, "SEND ERROR on \(upstream): \(error.localizedDescription) — cascading")
-                            self.forwardToUpstream(
-                                query: query, original: original, proto: proto,
-                                upstreamIndex: upstreamIndex + 1
-                            )
+                            return
                         }
-                        return
-                    }
-                    conn.receive(minimumIncompleteLength: 1, maximumLength: 65535) { data, _, _, _ in
-                        // Two failure modes here: (a) `data` is nil or empty
-                        // — server hung up without replying → cascade;
-                        // (b) got a valid DNS response → write back.
-                        if let data, !data.isEmpty {
+                        conn.receive(minimumIncompleteLength: 1, maximumLength: 65535) { data, _, _, _ in
+                            guard let data, !data.isEmpty else {
+                                conn.cancel()
+                                return
+                            }
                             if claimCompletion() {
                                 timeoutItem.cancel()
                                 let ipResp = IPPacket.buildResponse(original: original, dnsResponse: data)
                                 self.packetFlow.writePackets([ipResp], withProtocols: [proto])
+                                cancelAll()
+                            } else {
                                 conn.cancel()
-                            }
-                        } else {
-                            if claimCompletion() {
-                                timeoutItem.cancel()
-                                conn.cancel()
-                                self.logger.warning("DNS upstream \(upstream) returned empty response — trying next")
-                                DiagnosticLog.record(.dnsUpstream, "EMPTY RESPONSE from \(upstream) for '\(query.domainName)' — cascading")
-                                self.forwardToUpstream(
-                                    query: query, original: original, proto: proto,
-                                    upstreamIndex: upstreamIndex + 1
-                                )
                             }
                         }
-                    }
-                })
-            case .failed(let error):
-                if claimCompletion() {
-                    timeoutItem.cancel()
-                    self.logger.warning("DNS upstream \(upstream) connection failed (\(error.localizedDescription)) — trying next")
-                    DiagnosticLog.record(.dnsUpstream, "CONN FAILED to \(upstream): \(error.localizedDescription) — cascading")
-                    self.forwardToUpstream(
-                        query: query, original: original, proto: proto,
-                        upstreamIndex: upstreamIndex + 1
-                    )
+                    })
+                case .failed:
+                    // Individual upstream connect failure — cancel it
+                    // and let the others race. Only the whole-race
+                    // timeout escalates to a "dropped" log.
+                    conn.cancel()
+                default:
+                    break
                 }
-            default:
-                break
             }
-        }
 
-        conn.start(queue: .global(qos: .userInteractive))
+            conn.start(queue: .global(qos: .userInteractive))
+        }
     }
 
     // MARK: - Block page HTTP server
