@@ -15,6 +15,13 @@ enum MenuDestination: String, Identifiable, Hashable {
 struct SideMenuView: View {
     var onSelect: (MenuDestination) -> Void
 
+    @State private var showShareSheet = false
+
+    private let shareMessage = """
+    Estoy usando 24Defend para protegerme de sitios de fraude y phishing en el celular. Te lo recomiendo:
+    https://www.24defend.com/?ref=share_menu
+    """
+
     private struct Row: Identifiable {
         let id = UUID()
         let destination: MenuDestination
@@ -43,51 +50,79 @@ struct SideMenuView: View {
     ]
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-                .padding(.top, 60)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
+        // GeometryReader lets us read the real safe-area insets even though
+        // the panel itself ignores the safe area (needed so its background
+        // extends edge-to-edge behind the status bar / home indicator).
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                header
+                    .padding(.top, proxy.safeAreaInsets.top + 12)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
 
-            Divider()
+                Divider()
 
-            VStack(spacing: 4) {
-                ForEach(rows) { row in
-                    Button {
-                        onSelect(row.destination)
-                    } label: {
-                        HStack(spacing: 14) {
-                            Image(systemName: row.icon)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(row.iconColor)
-                                .frame(width: 40, height: 40)
-                                .background(row.iconBackground)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                VStack(spacing: 4) {
+                    ForEach(rows) { row in
+                        Button {
+                            onSelect(row.destination)
+                        } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: row.icon)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(row.iconColor)
+                                    .frame(width: 40, height: 40)
+                                    .background(row.iconBackground)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
 
-                            Text(row.title)
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(.primary)
-                                .multilineTextAlignment(.leading)
+                                Text(row.title)
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(.primary)
+                                    .multilineTextAlignment(.leading)
 
-                            Spacer()
+                                Spacer()
 
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.tertiary)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .contentShape(Rectangle())
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
-            }
-            .padding(.top, 8)
+                .padding(.top, 8)
 
-            Spacer()
+                Spacer()
+
+                Divider()
+
+                Button {
+                    showShareSheet = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "square.and.arrow.up")
+                        Text("Compartir la app")
+                    }
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, max(20, proxy.safeAreaInsets.bottom + 8))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .background(Color(.systemBackground))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemBackground))
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(items: [shareMessage])
+        }
     }
 
     private var header: some View {
