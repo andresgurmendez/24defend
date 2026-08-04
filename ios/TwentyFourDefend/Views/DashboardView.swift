@@ -49,7 +49,6 @@ struct DashboardView: View {
                 }
             }
             .frame(width: menuWidth)
-            .ignoresSafeArea()
             .shadow(color: .black.opacity(showMenu ? 0.2 : 0), radius: 12, x: 4, y: 0)
             .offset(x: menuOffset)
             .allowsHitTesting(showMenu)
