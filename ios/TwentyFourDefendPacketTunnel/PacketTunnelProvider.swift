@@ -972,12 +972,22 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     /// any point in the recent past?" — sourced from BlockLog which is
     /// stored in the app group's UserDefaults and survives tunnel restarts.
     ///
-    /// Time window (48h) is intentional: we don't want a 2-week-old yellow to
-    /// prevent a fresh yellow that would legitimately re-warn the user.
+    /// Windows:
+    ///   - Upper (48h): we don't want a 2-week-old yellow to prevent a fresh
+    ///     yellow that would legitimately re-warn the user.
+    ///   - Lower (5s grace): the tunnel's convention is BlockLog.append THEN
+    ///     sendNotification; without a grace window the just-appended entry
+    ///     dedups its own notification (bug introduced 2026-07-28, all
+    ///     notifications silently suppressed since then). 5s is well past
+    ///     the sub-millisecond gap between append and this lookup, and much
+    ///     shorter than any user-perceivable dedup window.
     private func hasEvent(baseKey: String, severity: EventSeverity) -> Bool {
-        let cutoff = Date().addingTimeInterval(-48 * 3600)
+        let now = Date()
+        let cutoff = now.addingTimeInterval(-48 * 3600)
+        let graceCutoff = now.addingTimeInterval(-5.0)
         for event in BlockLog.load() {
             if event.timestamp < cutoff { break } // BlockLog is stored newest-first
+            if event.timestamp > graceCutoff { continue } // Skip self-write from a just-appended entry
             if event.severity != severity { continue }
             let eventBase = BloomFilterStore.extractBaseDomain(event.domain.lowercased())
             if eventBase == baseKey { return true }
