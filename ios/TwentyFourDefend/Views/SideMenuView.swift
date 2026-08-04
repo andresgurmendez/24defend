@@ -50,76 +50,75 @@ struct SideMenuView: View {
     ]
 
     var body: some View {
-        // GeometryReader lets us read the real safe-area insets even though
-        // the panel itself ignores the safe area (needed so its background
-        // extends edge-to-edge behind the status bar / home indicator).
-        GeometryReader { proxy in
-            VStack(spacing: 0) {
-                header
-                    .padding(.top, proxy.safeAreaInsets.top + 12)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 20)
-
-                Divider()
-
-                VStack(spacing: 4) {
-                    ForEach(rows) { row in
-                        Button {
-                            onSelect(row.destination)
-                        } label: {
-                            HStack(spacing: 14) {
-                                Image(systemName: row.icon)
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(row.iconColor)
-                                    .frame(width: 40, height: 40)
-                                    .background(row.iconBackground)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                                Text(row.title)
-                                    .font(.body.weight(.medium))
-                                    .foregroundStyle(.primary)
-                                    .multilineTextAlignment(.leading)
-
-                                Spacer()
-
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.top, 8)
-
-                Spacer()
-
-                Divider()
-
-                Button {
-                    showShareSheet = true
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "square.and.arrow.up")
-                        Text("Compartir la app")
-                    }
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
+        VStack(spacing: 0) {
+            header
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
-                .padding(.bottom, max(20, proxy.safeAreaInsets.bottom + 8))
+                .padding(.bottom, 20)
+
+            Divider()
+
+            VStack(spacing: 4) {
+                ForEach(rows) { row in
+                    Button {
+                        onSelect(row.destination)
+                    } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: row.icon)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(row.iconColor)
+                                .frame(width: 40, height: 40)
+                                .background(row.iconBackground)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                            Text(row.title)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(.primary)
+                                .multilineTextAlignment(.leading)
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(Color(.systemBackground))
+            .padding(.top, 8)
+
+            Spacer()
+
+            Divider()
+
+            Button {
+                showShareSheet = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "square.and.arrow.up")
+                    Text("Compartir la app")
+                }
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.blue)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        // ignoresSafeArea is applied only to the background, not to this
+        // VStack itself, so the white fill bleeds edge-to-edge behind the
+        // status bar / home indicator while the header and button still sit
+        // safely inside the readable area instead of overlapping system UI.
+        .background(Color(.systemBackground).ignoresSafeArea())
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: [shareMessage])
         }
