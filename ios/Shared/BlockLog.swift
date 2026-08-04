@@ -52,6 +52,10 @@ public final class BlockLog {
         defaults.removeObject(forKey: key)
     }
 
+    public static func events(from: Date, to: Date = Date()) -> [BlockEvent] {
+        load().filter { $0.timestamp >= from && $0.timestamp <= to }
+    }
+
     private static func save(_ events: [BlockEvent]) {
         guard let defaults = UserDefaults(suiteName: suiteName),
               let data = try? JSONEncoder().encode(events) else { return }
