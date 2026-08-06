@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, LogOut, RefreshCw, ShieldBan, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, LogOut, RefreshCw, ShieldBan, ShieldCheck, Smartphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { KpiCard } from '@/components/KpiCard'
 import { EventsChart } from '@/components/EventsChart'
 import { TopDomainsTable } from '@/components/TopDomainsTable'
 import { SessionStatsPanel } from '@/components/SessionStatsPanel'
+import { VpnBehaviorPanel } from '@/components/VpnBehaviorPanel'
 import { ApiError, fetchDailyBlacklist, fetchDailyFalsePositives, fetchTelemetryStats } from '@/lib/api'
 import type { DomainClassification, TelemetryStats } from '@/lib/types'
 
@@ -58,7 +59,7 @@ export function DashboardPage() {
         <ErrorState message={error} onRetry={load} />
       ) : (
         <>
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <KpiCard
               label="Bloqueos totales"
               value={stats?.by_event_type.blocked ?? 0}
@@ -86,6 +87,14 @@ export function DashboardPage() {
               tone="success"
               loading={loading}
             />
+            <KpiCard
+              label="Dispositivos activos"
+              value={null}
+              icon={<Smartphone className="h-4 w-4 text-[var(--color-text-faint)]" />}
+              loading={loading}
+              pending
+              pendingNote="Requiere conteo por device_id (fase futura)"
+            />
           </section>
 
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -97,7 +106,7 @@ export function DashboardPage() {
             />
           </section>
 
-          <section className="grid grid-cols-1 gap-4">
+          <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <SessionStatsPanel
               stats={stats?.aggregate_session_stats ?? null}
               eventTotals={{
@@ -106,6 +115,7 @@ export function DashboardPage() {
               }}
               loading={loading}
             />
+            <VpnBehaviorPanel />
           </section>
 
           <p className="pb-4 text-center text-xs text-[var(--color-text-faint)]">
