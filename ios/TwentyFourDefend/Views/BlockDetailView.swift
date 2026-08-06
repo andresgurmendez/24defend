@@ -192,7 +192,7 @@ struct BlockDetailView: View {
             ShareSheet(items: [shareMessage])
         }
         .onAppear {
-            if autoShare && severity == .red {
+            if autoShare && (severity == .red || severity == .yellow) {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     showShareSheet = true
                 }

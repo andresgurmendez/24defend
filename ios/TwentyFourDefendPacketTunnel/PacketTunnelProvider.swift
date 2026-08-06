@@ -957,12 +957,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             }
 
             function triggerShare() {
-                var message = buildShareMessage();
-                if (navigator.share) {
-                    navigator.share({ title: '24Defend — Alerta de phishing', text: message }).catch(function() { openShareSheet(); });
-                } else {
-                    openShareSheet();
-                }
+                // navigator.share requires a secure context (HTTPS/localhost); this
+                // block page is served over plain HTTP from the sinkhole intercept,
+                // so it's always undefined here. Go straight to the custom sheet.
+                openShareSheet();
             }
 
             function openShareSheet() {
@@ -979,7 +977,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             }
 
             function shareViaSms() {
-                window.location.href = 'sms:&body=' + encodeURIComponent(buildShareMessage());
+                window.location.href = 'sms:?body=' + encodeURIComponent(buildShareMessage());
                 closeShareSheet();
             }
 
