@@ -4,6 +4,7 @@ import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 # Configure Python logging so app-level logger.info/warning/error lines
 # reach stdout (and therefore CloudWatch, via the Fargate log driver).
@@ -22,6 +23,7 @@ logging.basicConfig(
 )
 
 from app.agent import load_whitelist_cache
+from app.config import settings
 from app.db import ensure_table
 from app.scheduler import (
     generate_and_store_bloom_filters,
@@ -90,6 +92,15 @@ app = FastAPI(
     description="Domain threat intelligence API for the 24Defend iOS app",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# Only GET (read-only, public endpoints consumed by the internal dashboard
+# SPA). Never widen this to allow credentials/mutations without auth in front.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in settings.dashboard_cors_origins.split(",") if o.strip()],
+    allow_methods=["GET"],
+    allow_headers=["*"],
 )
 
 app.include_router(check_router)

@@ -339,6 +339,46 @@ checked_at < '2026-07-28T20:00Z'`, y para cada match:
 Alternativa manual: cada FP reportado se agrega a VENDOR_ALLOWLIST
 (lo que estamos haciendo). Menos completo pero cero riesgo.
 
+## Dashboard
+
+### Internal metrics dashboard: polish deferred from PR #7 review
+
+`harmatrix` review flagged 8 findings; fixed the 4 🚨 (auth on
+`/telemetry/stats`, real login + route guard, CORS default no longer
+whitelisting localhost in prod, private S3 + CloudFront OAC for
+`DashboardBucket`) before merging. Deferring the 4 🟡:
+
+- **`cdk synth`/`deploy` reads `../frontend/dist` at synth time**
+  (`s3deploy.BucketDeployment` in `infra/stack.py`). A clean checkout
+  without a prior `npm run build` fails synth, or worse, ships stale
+  artifacts already on disk. Fix idea: a `/deploy-dashboard` skill (or
+  Makefile target) that always runs `npm ci && npm run build` in
+  `frontend/` right before `cdk deploy`, or switch to CDK's own
+  `NodejsBuild`/bundling so the build happens inside the CDK asset
+  step instead of being an out-of-band precondition.
+- **No `.env.development`** — Vite falls back to `.env.production`
+  (`VITE_API_BASE=https://api.24defend.com`) for local dev too, so a
+  dev running the dashboard against a local backend has to hand-edit
+  env files. Fix: add `frontend/.env.development` pointing at
+  `http://localhost:8000`, document the override in
+  `frontend/README.md`.
+- **`DashboardBucket` has `RemovalPolicy.DESTROY` (dev) without
+  `auto_delete_objects=True`** — `cdk destroy` fails on a non-empty
+  bucket, same as the pre-existing `WwwBucket` (this isn't a
+  regression, just an existing footgun this PR inherited). Fix:
+  `auto_delete_objects=not is_prod` alongside the existing
+  `removal_policy` conditional.
+- **`DashboardPage.load()` has no `AbortController`** — a manual
+  refresh firing while a previous fetch is still in flight can let the
+  older response resolve after the newer one and overwrite fresh state
+  with stale data. Fix: standard
+  `AbortController` + `useEffect` cleanup around the `fetch` calls in
+  `lib/api.ts`.
+
+None of these are security-critical the way the 4 🚨 were — worst case
+is a confusing deploy failure, dev friction, a stuck `cdk destroy`, or
+a rare stale-overwrite render glitch.
+
 ## Notes
 
 - Add issues here as we hit them. When this file has more than 10-15

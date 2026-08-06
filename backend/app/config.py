@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     # Auth
     api_key: str = "dev-api-key-change-me"
 
+    # CORS — origins allowed to call the API from a browser (internal dashboard).
+    # Comma-separated in the env var, e.g. "https://dashboard.24defend.com,http://localhost:5173"
+    # Default is prod-only on purpose — a deploy that forgets to set this
+    # explicitly must NOT silently whitelist localhost. Add localhost via
+    # DEFEND_DASHBOARD_CORS_ORIGINS when developing locally instead.
+    dashboard_cors_origins: str = "https://dashboard.24defend.com"
+
     # Bedrock LLM. Native model IDs, no "bedrock/" prefix (that's LiteLLM notation).
     # Available: "zai.glm-4.7" (chosen), "zai.glm-4.7-flash",
     # "zai.glm-5", "us.anthropic.claude-sonnet-4-6".

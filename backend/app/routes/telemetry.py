@@ -6,9 +6,10 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from time import time
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 
+from app.auth import require_api_key
 from app.db import get_table
 
 logger = logging.getLogger(__name__)
@@ -159,10 +160,13 @@ async def ingest_events(batch: TelemetryBatch) -> dict:
     return {"accepted": items_written}
 
 
-@router.get("/stats")
+@router.get("/stats", dependencies=[Depends(require_api_key)])
 async def get_stats() -> dict:
-    """Return aggregate telemetry stats. Requires admin API key in production,
-    but left open for now during development.
+    """Return aggregate telemetry stats. Requires the X-API-Key header (same
+    key that gates /admin/*) — this is our full threat-intel feed (layer
+    distribution, top domains, traffic volume) and must not be scrapeable
+    by anyone with the dashboard URL. /events (device ingestion) stays
+    unauthenticated on purpose; only this read endpoint is gated.
 
     Scans telemetry items and aggregates counts by event_type and layer.
     """

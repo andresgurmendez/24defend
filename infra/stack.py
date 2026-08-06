@@ -176,6 +176,82 @@ class DefendStack(Stack):
             CfnOutput(self, "WwwDomain", value=f"https://{www_domain}")
 
         # ---------------------------------------------------------------
+        # S3 bucket + CloudFront for the internal metrics dashboard (SPA)
+        # ---------------------------------------------------------------
+        # Private bucket + CloudFront Origin Access Control (same pattern as
+        # BloomBucket/BloomCdn above) — unlike WwwBucket (public marketing
+        # site), this serves internal threat-intel metrics and must not be
+        # reachable by anyone who finds the S3 URL, bypassing CloudFront's
+        # HTTPS enforcement / future WAF rules entirely.
+        dashboard_bucket = s3.Bucket(
+            self,
+            "DashboardBucket",
+            bucket_name=f"24defend-dashboard-{env_name}",
+            removal_policy=RemovalPolicy.DESTROY if not is_prod else RemovalPolicy.RETAIN,
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+        )
+
+        dashboard_domain = f"dashboard.{www_domain}" if www_domain else ""
+        dashboard_cert = None
+        if dashboard_domain:
+            dashboard_cert = acm.Certificate(
+                self,
+                "DashboardCert",
+                domain_name=dashboard_domain,
+                validation=acm.CertificateValidation.from_dns(),
+            )
+
+        dashboard_distribution = cloudfront.Distribution(
+            self,
+            "DashboardCdn",
+            default_behavior=cloudfront.BehaviorOptions(
+                origin=origins.S3BucketOrigin.with_origin_access_control(dashboard_bucket),
+                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+            ),
+            domain_names=[dashboard_domain] if dashboard_cert else None,
+            certificate=dashboard_cert,
+            default_root_object="index.html",
+            # OAC-fronted S3 returns 403 (not 404) for a missing key since the
+            # caller has GetObject but not ListBucket. Route both to
+            # index.html so React Router's client-side routes survive a hard
+            # refresh / deep link — replaces the website_error_document trick
+            # that only works with the (public-only) S3 website-hosting origin.
+            error_responses=[
+                cloudfront.ErrorResponse(
+                    http_status=403,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                ),
+                cloudfront.ErrorResponse(
+                    http_status=404,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                ),
+            ],
+            comment=f"{prefix} internal dashboard",
+        )
+
+        # Deploys frontend/dist to S3 and invalidates CloudFront automatically
+        # on every `cdk deploy`. Requires `npm run build` in frontend/ first —
+        # this asset must exist on disk at synth time.
+        s3deploy.BucketDeployment(
+            self,
+            "DashboardDeploy",
+            sources=[s3deploy.Source.asset("../frontend/dist")],
+            destination_bucket=dashboard_bucket,
+            distribution=dashboard_distribution,
+            distribution_paths=["/*"],
+        )
+
+        CfnOutput(
+            self, "DashboardUrl", value=f"https://{dashboard_distribution.distribution_domain_name}"
+        )
+        CfnOutput(self, "DashboardBucketName", value=dashboard_bucket.bucket_name)
+        if dashboard_domain:
+            CfnOutput(self, "DashboardDomain", value=f"https://{dashboard_domain}")
+
+        # ---------------------------------------------------------------
         # Secrets Manager — API keys
         # ---------------------------------------------------------------
         api_key_secret = secretsmanager.Secret(
