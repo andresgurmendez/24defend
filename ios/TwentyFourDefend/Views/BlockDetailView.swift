@@ -29,39 +29,20 @@ struct BlockDetailView: View {
     }
 
     private var shareMessage: String {
-        let brandRef = detectedBrand.map { "&brand=\($0.lowercased())" } ?? ""
-        if severity == .red {
-            if let brand = detectedBrand {
-                return """
-                24Defend bloqueó un intento de fraude en mi celular. El enlace \(safeDomain) se hacía pasar por \(brand) para robar datos.
+        if let brand = detectedBrand {
+            return """
+            24Defend bloqueó un intento de fraude en mi celular. El enlace \(safeDomain) se hacía pasar por \(brand) para robar datos.
 
-                Si recibís un mensaje con este tipo de enlaces, no lo abras. Podés proteger tu celular con 24Defend:
-                https://www.24defend.com/?ref=share\(brandRef)
-                """
-            } else {
-                return """
-                24Defend detectó y bloqueó un enlace fraudulento en mi celular: \(safeDomain)
-
-                Si recibís un mensaje con enlaces sospechosos, no los abras. Podés proteger tu celular con 24Defend:
-                https://www.24defend.com/?ref=share
-                """
-            }
+            Si recibís un mensaje con este tipo de enlaces, no lo abras. Podés proteger tu celular con 24Defend:
+            https://www.24defend.com/?ref=share&brand=\(brand.lowercased())
+            """
         } else {
-            if let brand = detectedBrand {
-                return """
-                24Defend me alertó sobre un enlace sospechoso en mi celular. El enlace \(safeDomain) se parece al sitio oficial de \(brand) — podría ser phishing.
+            return """
+            24Defend detectó y bloqueó un enlace fraudulento en mi celular: \(safeDomain)
 
-                Si recibís un mensaje con este tipo de enlaces, no lo abras. Podés proteger tu celular con 24Defend:
-                https://www.24defend.com/?ref=share\(brandRef)
-                """
-            } else {
-                return """
-                24Defend me alertó sobre un enlace sospechoso en mi celular: \(safeDomain)
-
-                Si recibís un mensaje con enlaces sospechosos, no los abras. Podés proteger tu celular con 24Defend:
-                https://www.24defend.com/?ref=share
-                """
-            }
+            Si recibís un mensaje con enlaces sospechosos, no los abras. Podés proteger tu celular con 24Defend:
+            https://www.24defend.com/?ref=share
+            """
         }
     }
 
@@ -163,9 +144,8 @@ struct BlockDetailView: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
 
-            // Share button — for confirmed blocks and suspicious warnings.
-            // Not shown on green/checked since there's no threat to alert others about.
-            if severity == .red || severity == .yellow {
+            // Share button — only for confirmed blocks, not suspicious/warn
+            if severity == .red {
                 Button {
                     showShareSheet = true
                 } label: {
