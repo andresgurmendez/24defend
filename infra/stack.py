@@ -178,23 +178,17 @@ class DefendStack(Stack):
         # ---------------------------------------------------------------
         # S3 bucket + CloudFront for the internal metrics dashboard (SPA)
         # ---------------------------------------------------------------
+        # Private bucket + CloudFront Origin Access Control (same pattern as
+        # BloomBucket/BloomCdn above) — unlike WwwBucket (public marketing
+        # site), this serves internal threat-intel metrics and must not be
+        # reachable by anyone who finds the S3 URL, bypassing CloudFront's
+        # HTTPS enforcement / future WAF rules entirely.
         dashboard_bucket = s3.Bucket(
             self,
             "DashboardBucket",
             bucket_name=f"24defend-dashboard-{env_name}",
             removal_policy=RemovalPolicy.DESTROY if not is_prod else RemovalPolicy.RETAIN,
-            website_index_document="index.html",
-            # Any unknown path (client-side route) falls back to index.html,
-            # same trick as WwwBucket — required for React Router to work
-            # on hard refreshes / deep links.
-            website_error_document="index.html",
-            public_read_access=True,
-            block_public_access=s3.BlockPublicAccess(
-                block_public_acls=False,
-                block_public_policy=False,
-                ignore_public_acls=False,
-                restrict_public_buckets=False,
-            ),
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
         )
 
         dashboard_domain = f"dashboard.{www_domain}" if www_domain else ""
@@ -211,13 +205,30 @@ class DefendStack(Stack):
             self,
             "DashboardCdn",
             default_behavior=cloudfront.BehaviorOptions(
-                origin=origins.S3StaticWebsiteOrigin(dashboard_bucket),
+                origin=origins.S3BucketOrigin.with_origin_access_control(dashboard_bucket),
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                 cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
             ),
             domain_names=[dashboard_domain] if dashboard_cert else None,
             certificate=dashboard_cert,
             default_root_object="index.html",
+            # OAC-fronted S3 returns 403 (not 404) for a missing key since the
+            # caller has GetObject but not ListBucket. Route both to
+            # index.html so React Router's client-side routes survive a hard
+            # refresh / deep link — replaces the website_error_document trick
+            # that only works with the (public-only) S3 website-hosting origin.
+            error_responses=[
+                cloudfront.ErrorResponse(
+                    http_status=403,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                ),
+                cloudfront.ErrorResponse(
+                    http_status=404,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                ),
+            ],
             comment=f"{prefix} internal dashboard",
         )
 

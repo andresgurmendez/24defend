@@ -4,24 +4,38 @@ import { ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
+import { ApiError, verifyApiKey } from '@/lib/api'
+import { setStoredApiKey } from '@/lib/auth'
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  const [apiKey, setApiKey] = useState('')
   const [touched, setTouched] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const isValid = username.trim().length > 0 && password.length > 0
+  const isValid = apiKey.trim().length > 0
 
-  function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setTouched(true)
-    if (!isValid) return
+    setError(null)
+    if (!isValid || submitting) return
 
-    // Fase visual: todavía no hay backend de autenticación. Cuando se
-    // conecte POST /internal/auth/login, este handler llama a la API,
-    // guarda el JWT y recién ahí navega.
-    navigate('/')
+    setSubmitting(true)
+    try {
+      const ok = await verifyApiKey(apiKey.trim())
+      if (!ok) {
+        setError('Clave inválida.')
+        return
+      }
+      setStoredApiKey(apiKey.trim())
+      navigate('/')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Ocurrió un error inesperado.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -40,40 +54,25 @@ export function LoginPage() {
 
           <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="username" className="text-sm text-[var(--color-text-muted)]">
-                Usuario
+              <label htmlFor="apiKey" className="text-sm text-[var(--color-text-muted)]">
+                Clave de acceso
               </label>
               <Input
-                id="username"
-                autoComplete="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="nombre.apellido"
-              />
-              {touched && username.trim().length === 0 && (
-                <p className="text-xs text-[var(--color-danger)]">Ingresá tu usuario.</p>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="password" className="text-sm text-[var(--color-text-muted)]">
-                Contraseña
-              </label>
-              <Input
-                id="password"
+                id="apiKey"
                 type="password"
                 autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
                 placeholder="••••••••"
               />
-              {touched && password.length === 0 && (
-                <p className="text-xs text-[var(--color-danger)]">Ingresá tu contraseña.</p>
+              {touched && apiKey.trim().length === 0 && (
+                <p className="text-xs text-[var(--color-danger)]">Ingresá la clave de acceso.</p>
               )}
+              {error && <p className="text-xs text-[var(--color-danger)]">{error}</p>}
             </div>
 
-            <Button type="submit" className="mt-2 w-full">
-              Ingresar
+            <Button type="submit" className="mt-2 w-full" disabled={submitting}>
+              {submitting ? 'Verificando…' : 'Ingresar'}
             </Button>
           </form>
 

@@ -8,6 +8,7 @@ import { TopDomainsTable } from '@/components/TopDomainsTable'
 import { SessionStatsPanel } from '@/components/SessionStatsPanel'
 import { VpnBehaviorPanel } from '@/components/VpnBehaviorPanel'
 import { ApiError, fetchDailyBlacklist, fetchDailyFalsePositives, fetchTelemetryStats } from '@/lib/api'
+import { clearStoredApiKey } from '@/lib/auth'
 import type { DomainClassification, TelemetryStats } from '@/lib/types'
 
 export function DashboardPage() {
@@ -41,6 +42,11 @@ export function DashboardPage() {
       }
       setClassifications(map)
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        // fetchTelemetryStats already cleared the stored key on 401.
+        navigate('/login', { replace: true })
+        return
+      }
       setError(err instanceof ApiError ? err.message : 'Ocurrió un error inesperado.')
     } finally {
       setLoading(false)
@@ -53,7 +59,14 @@ export function DashboardPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      <Header onRefresh={load} onLogout={() => navigate('/login')} refreshing={loading} />
+      <Header
+        onRefresh={load}
+        onLogout={() => {
+          clearStoredApiKey()
+          navigate('/login')
+        }}
+        refreshing={loading}
+      />
 
       {error ? (
         <ErrorState message={error} onRetry={load} />

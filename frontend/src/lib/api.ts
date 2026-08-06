@@ -1,4 +1,5 @@
 import type { DailyDomainsResponse, TelemetryStats } from './types'
+import { clearStoredApiKey, getStoredApiKey } from './auth'
 
 // In dev this defaults to "/api", proxied by Vite (vite.config.ts) to
 // https://api.24defend.com to avoid CORS without touching the backend.
@@ -16,10 +17,10 @@ export class ApiError extends Error {
   }
 }
 
-async function getJson<T>(path: string): Promise<T> {
+async function getJson<T>(path: string, headers?: HeadersInit): Promise<T> {
   let response: Response
   try {
-    response = await fetch(`${API_BASE_URL}${path}`)
+    response = await fetch(`${API_BASE_URL}${path}`, { headers })
   } catch {
     throw new ApiError('No se pudo conectar con la API de 24Defend.')
   }
@@ -31,8 +32,33 @@ async function getJson<T>(path: string): Promise<T> {
   return (await response.json()) as T
 }
 
-export function fetchTelemetryStats(): Promise<TelemetryStats> {
-  return getJson<TelemetryStats>('/telemetry/stats')
+// GET /telemetry/stats requires X-API-Key (same key that gates /admin/*) —
+// it's our full threat-intel feed and must not be scrapeable by anyone with
+// the dashboard URL. Reads the key entered at login (see lib/auth.ts); a
+// 401 means the stored key is invalid/expired, so we clear it and surface
+// an ApiError the caller can route to /login on.
+export async function fetchTelemetryStats(): Promise<TelemetryStats> {
+  const key = getStoredApiKey()
+  try {
+    return await getJson<TelemetryStats>('/telemetry/stats', key ? { 'X-API-Key': key } : undefined)
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) {
+      clearStoredApiKey()
+    }
+    throw err
+  }
+}
+
+// Used by the login form to validate the entered key against the real
+// endpoint before storing it and navigating past the guard.
+export async function verifyApiKey(key: string): Promise<boolean> {
+  try {
+    await getJson<TelemetryStats>('/telemetry/stats', { 'X-API-Key': key })
+    return true
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) return false
+    throw err
+  }
 }
 
 // Both cover only cache entries checked in the last 48h (see
