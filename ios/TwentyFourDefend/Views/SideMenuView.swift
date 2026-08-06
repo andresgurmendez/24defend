@@ -3,7 +3,7 @@ import SwiftUI
 /// Destinations reachable from the hamburger menu.
 enum MenuDestination: String, Identifiable, Hashable {
     case weeklyReports
-    case terms
+    case privacyPolicy
     case contact
 
     var id: String { rawValue }
@@ -43,11 +43,11 @@ struct SideMenuView: View {
             iconColor: .green,
             iconBackground: Color.green.opacity(0.15),
             title: "Reportes semanales de phishing"),
-        Row(destination: .terms,
-            icon: "doc.text",
+        Row(destination: .privacyPolicy,
+            icon: "hand.raised.fill",
             iconColor: .purple,
             iconBackground: Color.purple.opacity(0.15),
-            title: "Términos y condiciones"),
+            title: "Política de privacidad"),
         Row(destination: .contact,
             icon: "envelope.fill",
             iconColor: .blue,
