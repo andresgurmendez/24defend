@@ -100,22 +100,31 @@ public final class DomainChecker {
             return .allowed
         }
 
-        // 1. Exact blacklist match
+        // 1. Exact whitelist match — allow before any block/warn heuristics,
+        // matching the bloom-filter order in the tunnel.
+        //
+        // INVARIANT: any subdomain of a whitelisted root short-circuits to
+        // .allowed here and never reaches the blacklist checks below. Do NOT
+        // add a specific-child phishing pattern (e.g. login.brou.com.uy) to
+        // `blacklist` expecting it to block — it won't, because its parent
+        // (brou.com.uy) is whitelisted and this loop returns first. Route
+        // compromised-subdomain patterns to the runtime blacklist or daily
+        // blacklist instead — those run BEFORE this function, in the tunnel.
+        for official in whitelist {
+            if normalized == official || normalized.hasSuffix(".\(official)") {
+                return .allowed
+            }
+        }
+
+        // 2. Exact blacklist match
         if blacklist.contains(normalized) {
             return .blocked(reason: "Known phishing domain")
         }
 
-        // 2. Subdomain of blacklisted domain
+        // 3. Subdomain of blacklisted domain
         for bad in blacklist {
             if normalized.hasSuffix(".\(bad)") {
                 return .blocked(reason: "Subdomain of known phishing domain")
-            }
-        }
-
-        // 3. Exact whitelist match
-        for official in whitelist {
-            if normalized == official || normalized.hasSuffix(".\(official)") {
-                return .allowed
             }
         }
 
