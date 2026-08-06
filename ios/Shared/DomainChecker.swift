@@ -100,22 +100,22 @@ public final class DomainChecker {
             return .allowed
         }
 
-        // 1. Exact whitelist match — allow before any block/warn heuristics
-        for official in whitelist {
-            if normalized == official || normalized.hasSuffix(".\(official)") {
-                return .allowed
-            }
-        }
-
-        // 2. Exact blacklist match
+        // 1. Exact blacklist match
         if blacklist.contains(normalized) {
             return .blocked(reason: "Known phishing domain")
         }
 
-        // 3. Subdomain of blacklisted domain
+        // 2. Subdomain of blacklisted domain
         for bad in blacklist {
             if normalized.hasSuffix(".\(bad)") {
                 return .blocked(reason: "Subdomain of known phishing domain")
+            }
+        }
+
+        // 3. Exact whitelist match
+        for official in whitelist {
+            if normalized == official || normalized.hasSuffix(".\(official)") {
+                return .allowed
             }
         }
 
