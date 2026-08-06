@@ -123,6 +123,17 @@ iOS tests (`ios/Tests/*.swift`) require Xcode target membership to actually exec
 
 Use github-24defend SSH host alias (separate key from other repos). Push with `ssh-add ~/.ssh/id_24defend` first.
 
+### ⚠️ Never merge a PR to `main` with unaddressed blocking review comments
+
+**Incident (2026-08-06):** PRs #1, #2, #3, #7 were all merged directly to `main` despite each having a code-review comment (from the `harmatrix` review bot) that explicitly called out blocking issues — including two 🚨 SECURITY CRITICAL findings on PR #7 (unauthenticated telemetry endpoint + cosmetic-only login, both fully public) and a 🚨 BUILD BREAK on PR #3 (new Swift files added without regenerating the Xcode project — the PR did not compile). None of the comments were read or acted on before merging. All 4 merges had to be reverted (`git revert -m 1`, see commits `5d45c8e`, `f10018a`, `cf011d1`, `1a6422a`) once the reviewer noticed `main` had moved without their feedback being addressed.
+
+**Rule going forward:**
+1. Before merging ANY PR to `main` (via `gh pr merge`, GitHub UI, or a local merge that gets pushed), fetch and read its review comments first: `gh pr view <n> --json comments,reviews`.
+2. Treat any comment containing 🚨 (critical/security/build-break) as an automatic merge blocker — do not merge until the finding is fixed in a follow-up commit or the human explicitly overrides it in writing (and record that override in the PR itself, not just verbally).
+3. 🟡 (moderate) findings are not automatic blockers but must be at least acknowledged — either fixed, or explicitly deferred with a note in the PR/`issues.md` about why it's safe to defer.
+4. When in doubt about whether a comment was addressed, diff the PR's final commit against what the comment's suggested fix describes — don't assume a comment is stale just because time has passed.
+5. This applies whether the merge target is `main` or a shared feature branch other PRs build on top of (e.g. PRs #4/#5/#6 merging into `feature/hamburger-menu-ui`) — unaddressed blockers compound downstream.
+
 ## Secrets
 
 Secrets Manager values must be set manually after first stack creation. API key is "dev-api-key-24defend". AWS credentials for the dev account (081856108753) are in `aws.sh` at repo root — these are IAM user keys for the bedrock24defend user.
