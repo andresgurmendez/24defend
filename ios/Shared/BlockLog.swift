@@ -52,8 +52,12 @@ public final class BlockLog {
         defaults.removeObject(forKey: key)
     }
 
+    /// `to` is exclusive (half-open interval). Custom ranges compute `to` as
+    /// the day AFTER the selected end date at midnight; an inclusive `<=`
+    /// let an event timestamped exactly at that midnight boundary (the start
+    /// of the following day) count as part of the prior day's range.
     public static func events(from: Date, to: Date = Date()) -> [BlockEvent] {
-        load().filter { $0.timestamp >= from && $0.timestamp <= to }
+        load().filter { $0.timestamp >= from && $0.timestamp < to }
     }
 
     private static func save(_ events: [BlockEvent]) {

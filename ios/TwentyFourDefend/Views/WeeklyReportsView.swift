@@ -15,6 +15,7 @@ struct WeeklyReportsView: View {
     @State private var customEnd = Date()
     @State private var showingCustomRange = false
     @State private var hasAnyHistory = true
+    @State private var lastRefresh = Date()
 
     var body: some View {
         Group {
@@ -42,8 +43,20 @@ struct WeeklyReportsView: View {
         .navigationTitle("Reportes semanales")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { hasAnyHistory = !BlockLog.load().isEmpty }
+        // The tunnel extension writes new BlockLog events to shared
+        // UserDefaults in the background (e.g. mid phishing-campaign burst)
+        // with no notification into this process. Poll so a screen left
+        // open on the empty state or stale counts catches up within 30s.
+        .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now in
+            lastRefresh = now
+            hasAnyHistory = !BlockLog.load().isEmpty
+        }
         .sheet(isPresented: $showingCustomRange) {
-            customRangeSheet
+            CustomRangeSheet(initialStart: customStart, initialEnd: customEnd) { start, end in
+                customStart = start
+                customEnd = end
+                filter = .custom
+            }
         }
     }
 
@@ -91,28 +104,6 @@ struct WeeklyReportsView: View {
         }
     }
 
-    private var customRangeSheet: some View {
-        NavigationStack {
-            Form {
-                DatePicker("Desde", selection: $customStart, in: ...customEnd, displayedComponents: .date)
-                DatePicker("Hasta", selection: $customEnd, in: customStart...Date(), displayedComponents: .date)
-            }
-            .navigationTitle("Rango personalizado")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Aplicar") {
-                        filter = .custom
-                        showingCustomRange = false
-                    }
-                }
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancelar") { showingCustomRange = false }
-                }
-            }
-        }
-    }
-
     // MARK: - Stats
 
     private var range: (from: Date, to: Date) {
@@ -122,7 +113,13 @@ struct WeeklyReportsView: View {
         case .today:
             return (calendar.startOfDay(for: now), now)
         case .week:
-            return (calendar.date(byAdding: .day, value: -7, to: now) ?? now, now)
+            // Calendar-aligned like .today/.month (today + 6 previous days =
+            // 7 days), not a rolling 168h window — a rolling window put an
+            // event from earlier today outside "7 días" depending on what
+            // time of day the report was opened, which didn't match .today/
+            // .month's calendar-aligned behavior for the same event.
+            let sixDaysAgo = calendar.date(byAdding: .day, value: -6, to: now) ?? now
+            return (calendar.startOfDay(for: sixDaysAgo), now)
         case .month:
             let start = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
             return (start, now)
@@ -150,7 +147,10 @@ struct WeeklyReportsView: View {
     }
 
     private var headerText: String {
-        let total = filteredEvents.count
+        // .green events are sites CLEARED as safe after investigation — the
+        // opposite of a fraud attempt. Only blocked + suspicious count
+        // toward "protected you from N attempts."
+        let total = blockedCount + suspiciousCount
         guard total > 0 else {
             return "Sin actividad sospechosa \(periodPhrase)."
         }
@@ -203,6 +203,52 @@ struct WeeklyReportsView: View {
                 .foregroundStyle(Color.accentColor)
             }
             .frame(height: 160)
+        }
+    }
+}
+
+/// Owns its own draft `start`/`end` state, separate from the parent's
+/// applied `customStart`/`customEnd`. Editing the pickers and tapping
+/// "Cancelar" used to mutate the parent's bound dates in place — the
+/// sheet closed but the (unwanted) edited range silently became the
+/// active filter on next render. Now nothing reaches the parent until
+/// "Aplicar" explicitly calls `onApply`.
+private struct CustomRangeSheet: View {
+    let initialStart: Date
+    let initialEnd: Date
+    let onApply: (Date, Date) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var start: Date
+    @State private var end: Date
+
+    init(initialStart: Date, initialEnd: Date, onApply: @escaping (Date, Date) -> Void) {
+        self.initialStart = initialStart
+        self.initialEnd = initialEnd
+        self.onApply = onApply
+        _start = State(initialValue: initialStart)
+        _end = State(initialValue: initialEnd)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                DatePicker("Desde", selection: $start, in: ...end, displayedComponents: .date)
+                DatePicker("Hasta", selection: $end, in: start...Date(), displayedComponents: .date)
+            }
+            .navigationTitle("Rango personalizado")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Aplicar") {
+                        onApply(start, end)
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancelar") { dismiss() }
+                }
+            }
         }
     }
 }
