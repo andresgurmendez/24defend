@@ -32,7 +32,3 @@ aws.sh
 ml/.venv/
 serper.conf
 infra/cdk.out/
-
-#frontend
-frontend/node_modules/
-frontend/dist/
