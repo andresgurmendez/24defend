@@ -23,7 +23,13 @@ struct SideMenuView: View {
     """
 
     private struct Row: Identifiable {
-        let id = UUID()
+        // `destination` is already Hashable/Identifiable — use it as the
+        // row's own id instead of `UUID()`. SideMenuView is a struct, so
+        // `rows` (and every UUID() in it) re-initializes on every parent
+        // re-render — including every frame during a drag gesture — which
+        // used to hand ForEach a brand-new identity each time and reset
+        // row press-state mid-gesture.
+        var id: MenuDestination { destination }
         let destination: MenuDestination
         let icon: String
         let iconColor: Color

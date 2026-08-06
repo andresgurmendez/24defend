@@ -178,6 +178,37 @@ each path.
 
 ## Product / iOS
 
+### Hamburger menu (SideMenuView/DashboardView): polish deferred from PR #3 review
+
+`harmatrix` review on the hamburger-menu PR flagged 4 findings we
+fixed before merging (a11y label + hidden-tree fixes, `Row.id` UUID
+churn) and 4 we're deferring as follow-up polish, per the review's own
+recommendation:
+
+- **Drag-release teleport**: releasing a partial swipe-open drag
+  without crossing the threshold snaps `menuDragTranslation` back to 0
+  without a spring (`.animation(_:value: showMenu)` doesn't cover it).
+  Fix: add `.animation(.interactiveSpring(), value: menuDragTranslation)`.
+- **Hardcoded `DispatchQueue.main.asyncAfter(0.25)`** for deferred
+  navigation after the menu closes, no cancellation — backgrounding/
+  rotating/re-tapping in that window can misfire, and 0.25s assumes a
+  fixed animation duration regardless of Reduce Motion. Fix: drive off
+  `.onDisappear` or an animation completion callback instead.
+- **`UIScreen.main.bounds.width`** for menu width is wrong on iPad
+  Split View/Stage Manager (returns full screen bounds, ~50% overflow)
+  and doesn't react to rotation. Fix: `GeometryReader` or
+  `@Environment(\.horizontalSizeClass)`.
+- **Brief `EmptyView` flash on back-pop**: `navigationDestination(isPresented:)`
+  + switch-on-optional clears `destination` mid-transition. iOS 17 has
+  `navigationDestination(item:)` for this; iOS 16 (our deployment
+  target) needs a `lastDestination` fallback or a direct
+  `NavigationLink`.
+
+None of these are security- or correctness-critical for the initial
+ship (worst case is a visual glitch or an iPad-only overflow); revisit
+if iPad support becomes a priority or during a general SwiftUI-16
+navigation cleanup.
+
 ### Can't filter DNS by source app (browser vs background)
 
 `NEPacketTunnelProvider` (our current extension type) receives raw IP

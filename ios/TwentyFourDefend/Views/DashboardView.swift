@@ -36,6 +36,7 @@ struct DashboardView: View {
         ZStack(alignment: .leading) {
             dashboard
                 .allowsHitTesting(!showMenu)
+                .accessibilityHidden(showMenu)
 
             Color.black.opacity(showMenu ? 0.35 : 0)
                 .ignoresSafeArea()
@@ -52,6 +53,7 @@ struct DashboardView: View {
             .shadow(color: .black.opacity(showMenu ? 0.2 : 0), radius: 12, x: 4, y: 0)
             .offset(x: menuOffset)
             .allowsHitTesting(showMenu)
+            .accessibilityHidden(!showMenu)
             .gesture(
                 DragGesture()
                     .updating($menuDragTranslation) { value, state, _ in
@@ -139,6 +141,7 @@ struct DashboardView: View {
                     Button { showMenu = true } label: {
                         Image(systemName: "line.3.horizontal")
                     }
+                    .accessibilityLabel("Abrir menú")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showLog = true } label: {
