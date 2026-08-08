@@ -266,6 +266,7 @@ the screen is open). Deferring the rest:
 None of these are correctness-critical the way the 🚨 findings were —
 worst case is an undercount during a large campaign or a cosmetic
 flash/chart-detail loss.
+
 ### Can't filter DNS by source app (browser vs background)
 
 `NEPacketTunnelProvider` (our current extension type) receives raw IP

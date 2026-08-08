@@ -790,6 +790,109 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 color: #475569;
                 font-size: 12px;
             }
+            .share-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                background: transparent;
+                border: 1px solid #334155;
+                color: #E2E8F0;
+                font-size: 14px;
+                font-weight: 600;
+                padding: 12px 22px;
+                border-radius: 24px;
+                cursor: pointer;
+                margin-bottom: 22px;
+                font-family: inherit;
+            }
+            .share-btn svg {
+                width: 18px; height: 18px;
+                fill: #E2E8F0;
+            }
+            .sheet-overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.6);
+                align-items: flex-end;
+                justify-content: center;
+                z-index: 10;
+            }
+            .sheet {
+                background: #1E293B;
+                width: 100%;
+                max-width: 400px;
+                border-radius: 16px 16px 0 0;
+                padding: 8px 16px 24px;
+            }
+            .sheet-handle {
+                width: 36px;
+                height: 4px;
+                background: #475569;
+                border-radius: 2px;
+                margin: 8px auto 16px;
+            }
+            .sheet-title {
+                color: #94A3B8;
+                font-size: 13px;
+                text-align: center;
+                margin-bottom: 12px;
+            }
+            .sheet-option {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                width: 100%;
+                background: none;
+                border: none;
+                color: #E2E8F0;
+                font-size: 16px;
+                font-family: inherit;
+                padding: 12px 4px;
+                cursor: pointer;
+                text-align: left;
+            }
+            .sheet-icon {
+                width: 36px; height: 36px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+            .sheet-icon svg { width: 18px; height: 18px; fill: #fff; }
+            .sheet-cancel {
+                width: 100%;
+                margin-top: 8px;
+                background: #334155;
+                border: none;
+                color: #E2E8F0;
+                font-size: 15px;
+                font-weight: 600;
+                font-family: inherit;
+                padding: 14px;
+                border-radius: 12px;
+                cursor: pointer;
+            }
+            .toast {
+                position: fixed;
+                bottom: 24px;
+                left: 50%;
+                transform: translateX(-50%) translateY(20px);
+                background: #334155;
+                color: #E2E8F0;
+                padding: 10px 18px;
+                border-radius: 20px;
+                font-size: 13px;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.2s, transform 0.2s;
+                z-index: 20;
+            }
+            .toast.show {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
             </style>
             </head>
             <body>
@@ -802,9 +905,134 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     24Defend ha bloqueado el acceso a este sitio porque ha sido identificado como fraudulento o de phishing.
                 </p>
                 <div class="domain" id="blocked-domain"></div>
+                <button class="share-btn" onclick="triggerShare()">
+                    <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
+                    Alertar a otros
+                </button>
                 <p class="footer">Protegido por 24Defend</p>
             </div>
-            <script>document.getElementById('blocked-domain').textContent=location.hostname;</script>
+
+            <div class="sheet-overlay" id="sheet-overlay" onclick="if(event.target===this)closeShareSheet()">
+                <div class="sheet">
+                    <div class="sheet-handle"></div>
+                    <div class="sheet-title">Compartir alerta</div>
+                    <button class="sheet-option" onclick="shareViaWhatsapp()">
+                        <span class="sheet-icon" style="background:#25D366">
+                            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.36 5.07L2 22l5.07-1.33A9.94 9.94 0 0 0 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm.02 18.2c-1.6 0-3.15-.43-4.5-1.24l-.32-.19-3.35.88.9-3.26-.21-.34A8.17 8.17 0 0 1 3.8 12c0-4.53 3.68-8.2 8.2-8.2 4.53 0 8.2 3.68 8.2 8.2s-3.67 8.2-8.18 8.2zm4.5-6.13c-.25-.12-1.47-.72-1.7-.81-.23-.08-.39-.12-.56.13-.17.25-.64.81-.78.97-.14.17-.29.19-.53.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.38.11-.51.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.36-.77-1.86-.2-.48-.41-.42-.56-.43-.14-.01-.31-.01-.48-.01s-.43.06-.66.31c-.23.25-.86.85-.86 2.06 0 1.22.89 2.4 1.01 2.56.12.17 1.75 2.68 4.25 3.75.59.26 1.06.41 1.42.53.6.19 1.14.16 1.57.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.14-1.18-.06-.11-.23-.17-.48-.29z"/></svg>
+                        </span>
+                        WhatsApp
+                    </button>
+                    <button class="sheet-option" onclick="shareViaSms()">
+                        <span class="sheet-icon" style="background:#0A84FF">
+                            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+                        </span>
+                        Mensajes
+                    </button>
+                    <button class="sheet-option" onclick="shareViaMail()">
+                        <span class="sheet-icon" style="background:#64748B">
+                            <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                        </span>
+                        Correo
+                    </button>
+                    <button class="sheet-option" onclick="copyShareText()">
+                        <span class="sheet-icon" style="background:#64748B">
+                            <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                        </span>
+                        Copiar texto
+                    </button>
+                    <button class="sheet-cancel" onclick="closeShareSheet()">Cancelar</button>
+                </div>
+            </div>
+            <div class="toast" id="toast"></div>
+
+            <script>
+            document.getElementById('blocked-domain').textContent = location.hostname;
+
+            function defangedDomain() {
+                return location.hostname.split('.').join('[.]');
+            }
+
+            function detectedBrand() {
+                var brandNames = [
+                    ['brou', 'BROU'], ['itau', 'Itau'], ['santander', 'Santander'],
+                    ['scotiabank', 'Scotiabank'], ['bbva', 'BBVA'], ['hsbc', 'HSBC'],
+                    ['mercadopago', 'MercadoPago'], ['mercadolibre', 'MercadoLibre'],
+                    ['oca', 'OCA'], ['prex', 'Prex'], ['antel', 'Antel'],
+                    ['movistar', 'Movistar'], ['claro', 'Claro'],
+                    ['abitab', 'Abitab'], ['redpagos', 'RedPagos'],
+                    ['pedidosya', 'PedidosYa'], ['bps', 'BPS'], ['dgi', 'DGI']
+                ];
+                var d = location.hostname.toLowerCase();
+                for (var i = 0; i < brandNames.length; i++) {
+                    if (d.indexOf(brandNames[i][0]) !== -1) return brandNames[i][1];
+                }
+                return null;
+            }
+
+            function buildShareMessage() {
+                var brand = detectedBrand();
+                var ref = 'https://www.24defend.com/?ref=share' + (brand ? '&brand=' + brand.toLowerCase() : '');
+                return '⚠️ Alerta de phishing: ' + defangedDomain() + ' es un sitio fraudulento.\\n\\n24Defend me protegió automáticamente de caer en la estafa.\\n\\nProtegete gratis, descargá la app: ' + ref;
+            }
+
+            function triggerShare() {
+                // navigator.share requires a secure context (HTTPS/localhost); this
+                // block page is served over plain HTTP from the sinkhole intercept,
+                // so it's always undefined here. Go straight to the custom sheet.
+                openShareSheet();
+            }
+
+            function openShareSheet() {
+                document.getElementById('sheet-overlay').style.display = 'flex';
+            }
+
+            function closeShareSheet() {
+                document.getElementById('sheet-overlay').style.display = 'none';
+            }
+
+            function shareViaWhatsapp() {
+                window.open('https://wa.me/?text=' + encodeURIComponent(buildShareMessage()), '_blank');
+                closeShareSheet();
+            }
+
+            function shareViaSms() {
+                window.location.href = 'sms:?body=' + encodeURIComponent(buildShareMessage());
+                closeShareSheet();
+            }
+
+            function shareViaMail() {
+                window.location.href = 'mailto:?subject=' + encodeURIComponent('Alerta de phishing detectada') + '&body=' + encodeURIComponent(buildShareMessage());
+                closeShareSheet();
+            }
+
+            function copyShareText() {
+                var textarea = document.createElement('textarea');
+                textarea.value = buildShareMessage();
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                try {
+                    if (document.execCommand('copy')) {
+                        showToast('Texto copiado');
+                    } else {
+                        showToast('No se pudo copiar');
+                    }
+                } catch (e) {
+                    showToast('No se pudo copiar');
+                }
+                document.body.removeChild(textarea);
+                closeShareSheet();
+            }
+
+            function showToast(msg) {
+                var toast = document.getElementById('toast');
+                toast.textContent = msg;
+                toast.classList.add('show');
+                setTimeout(function() { toast.classList.remove('show'); }, 2200);
+            }
+            </script>
             </body>
             </html>
             """
