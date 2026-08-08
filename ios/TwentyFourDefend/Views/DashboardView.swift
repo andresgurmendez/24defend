@@ -167,7 +167,7 @@ struct DashboardView: View {
             )) {
                 switch menuDestination {
                 case .weeklyReports: WeeklyReportsView()
-                case .terms: TermsView()
+                case .privacyPolicy: PrivacyPolicyView()
                 case .contact: ContactSupportView()
                 case nil: EmptyView()
                 }

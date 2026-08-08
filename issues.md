@@ -209,6 +209,64 @@ ship (worst case is a visual glitch or an iPad-only overflow); revisit
 if iPad support becomes a priority or during a general SwiftUI-16
 navigation cleanup.
 
+### Privacy policy screen (PrivacyPolicyView): polish deferred from PR #6 review
+
+`harmatrix` review on the original Terms→Privacy-Policy PR flagged a
+🚨 COMPLIANCE CRITICAL finding: the policy text inlined in Swift had
+already drifted from `www/privacy-es.html` (missing accents, different
+emphasis/capitalization) within the same PR that added it — proof the
+"keep two copies in sync manually" approach doesn't work, and exactly
+the kind of two-different-documents-both-claiming-to-be-the-policy
+situation Apple's 5.1.1 guideline exists to catch.
+
+**Fixed by construction, not by patching**: `PrivacyPolicyView` now
+loads the actual `www/privacy-es.html` in a `WKWebView` (bundled as an
+app resource via `project.yml`, same file the website serves) instead
+of a hand-copied Swift version. This also incidentally resolves two of
+the review's 🟡 findings for free — the HTML's real `<a href="mailto:...">`
+/ `<a href="https://...">` links are natively tappable, and its real
+`<h2>`/`<h3>` tags are already navigable via VoiceOver's Headings
+rotor, both of which the from-scratch Swift version would have had to
+build by hand.
+
+Deferring:
+
+- **"Última actualización" date is still a hardcoded string inside the
+  HTML.** The drift risk this created is much smaller now (one file
+  instead of two), but nothing stops it from silently going stale on a
+  future policy edit. Fix idea: derive from the file's git commit date
+  at build time, or extract to a small templated placeholder.
+- **Legal-text font size in the HTML CSS is small** (`p, li` default
+  ~16px, no Dynamic Type support since it's a WebView, not native
+  text) — a website-wide styling decision more than an app-specific
+  one; revisit together with any broader `www/` accessibility pass.
+
+### Weekly reports (WeeklyReportsView): polish deferred from PR #4 review
+
+`harmatrix` review flagged 8 findings; fixed the 3 🚨 (green events
+counted as fraud attempts in the header, "Cancelar" mutating the
+applied custom range, off-by-one on the custom-range end date) plus 2
+🟡 (rolling vs calendar-aligned "7 días" window, no live refresh while
+the screen is open). Deferring the rest:
+
+- **200-event `BlockLog` cap silently truncates counts.** During an
+  active phishing campaign a user can generate >200 events in <30
+  days; oldest get dropped and the header reads as precise ("Te
+  protegimos de 200 intentos") when it's actually a floor. Fix ideas:
+  raise `maxEntries`, annotate the header when `count == 200`, or add
+  an explicit truncation notice.
+- **Chart aggregates all severities into one bar per day**, losing the
+  story the stat cards tell (a day with 5 red + 5 green looks
+  identical to a day with 10 red). Swift Charts supports
+  `.foregroundStyle(by:)` for a stacked bar keyed on `event.severity`.
+- **Initial `hasAnyHistory = true` flashes the full scaffold** for
+  brand-new users before `.onAppear` flips it to the empty state.
+  Compute the initial value in `init` instead, or default to `false`.
+
+None of these are correctness-critical the way the 🚨 findings were —
+worst case is an undercount during a large campaign or a cosmetic
+flash/chart-detail loss.
+
 ### Can't filter DNS by source app (browser vs background)
 
 `NEPacketTunnelProvider` (our current extension type) receives raw IP
