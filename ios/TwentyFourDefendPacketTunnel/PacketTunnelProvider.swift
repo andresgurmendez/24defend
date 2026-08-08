@@ -952,8 +952,27 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 return location.hostname.split('.').join('[.]');
             }
 
+            function detectedBrand() {
+                var brandNames = [
+                    ['brou', 'BROU'], ['itau', 'Itau'], ['santander', 'Santander'],
+                    ['scotiabank', 'Scotiabank'], ['bbva', 'BBVA'], ['hsbc', 'HSBC'],
+                    ['mercadopago', 'MercadoPago'], ['mercadolibre', 'MercadoLibre'],
+                    ['oca', 'OCA'], ['prex', 'Prex'], ['antel', 'Antel'],
+                    ['movistar', 'Movistar'], ['claro', 'Claro'],
+                    ['abitab', 'Abitab'], ['redpagos', 'RedPagos'],
+                    ['pedidosya', 'PedidosYa'], ['bps', 'BPS'], ['dgi', 'DGI']
+                ];
+                var d = location.hostname.toLowerCase();
+                for (var i = 0; i < brandNames.length; i++) {
+                    if (d.indexOf(brandNames[i][0]) !== -1) return brandNames[i][1];
+                }
+                return null;
+            }
+
             function buildShareMessage() {
-                return '⚠️ Alerta de phishing: ' + defangedDomain() + ' es un sitio fraudulento.\\n\\n24Defend me protegió automáticamente de caer en la estafa.\\n\\nProtegete gratis, descargá la app: https://www.24defend.com/';
+                var brand = detectedBrand();
+                var ref = 'https://www.24defend.com/?ref=share' + (brand ? '&brand=' + brand.toLowerCase() : '');
+                return '⚠️ Alerta de phishing: ' + defangedDomain() + ' es un sitio fraudulento.\\n\\n24Defend me protegió automáticamente de caer en la estafa.\\n\\nProtegete gratis, descargá la app: ' + ref;
             }
 
             function triggerShare() {
@@ -995,8 +1014,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 textarea.focus();
                 textarea.select();
                 try {
-                    document.execCommand('copy');
-                    showToast('Texto copiado');
+                    if (document.execCommand('copy')) {
+                        showToast('Texto copiado');
+                    } else {
+                        showToast('No se pudo copiar');
+                    }
                 } catch (e) {
                     showToast('No se pudo copiar');
                 }
