@@ -36,6 +36,8 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         ITSAppUsesNonExemptEncryption: false
+        LSApplicationQueriesSchemes:
+          - mailto
     dependencies:
       - target: TwentyFourDefendPacketTunnel
     settings:

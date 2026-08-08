@@ -35,7 +35,6 @@ struct ContactSupportView: View {
                             value: "www.24defend.com"
                         )
                     }
-                    .accessibilityLabel("Sitio web")
                     .accessibilityHint("Abre 24defend.com en Safari")
 
                     Divider().padding(.leading, 56)
@@ -49,7 +48,6 @@ struct ContactSupportView: View {
                             value: supportEmail
                         )
                     }
-                    .accessibilityLabel("Correo de soporte")
                     .accessibilityHint("Abre el correo para escribir a \(supportEmail)")
                 }
                 .background(.ultraThinMaterial)
