@@ -5,6 +5,10 @@ struct DashboardView: View {
     @State private var blockLog: [BlockEvent] = []
     @State private var showLog = false
     @State private var showDisclosure = false
+    @State private var showMenu = false
+    @State private var menuDestination: MenuDestination?
+    @GestureState private var menuDragTranslation: CGFloat = 0
+    private var menuWidth: CGFloat { min(320, UIScreen.main.bounds.width * 0.82) }
 
     // Hidden diagnostic panel: 7 rapid taps on the shield icon (inspired by
     // Android's "tap the build number 7 times" for developer options). Not
@@ -21,6 +25,51 @@ struct DashboardView: View {
     @AppStorage("vpn_disclosure_accepted_v1") private var disclosureAccepted = false
 
     var body: some View {
+        // The dim layer and menu panel stay mounted at all times and are driven
+        // purely by `offset`/`opacity` tied to `showMenu`. Mounting/unmounting
+        // them with `if showMenu { … } + .transition(...)` forces SwiftUI to
+        // build the whole subtree from scratch on every open, which is what
+        // made the animation feel janky. Animating a plain offset is much
+        // cheaper and matches how native drawers animate.
+        let menuOffset = (showMenu ? 0 : -menuWidth) + menuDragTranslation
+
+        ZStack(alignment: .leading) {
+            dashboard
+                .allowsHitTesting(!showMenu)
+                .accessibilityHidden(showMenu)
+
+            Color.black.opacity(showMenu ? 0.35 : 0)
+                .ignoresSafeArea()
+                .allowsHitTesting(showMenu)
+                .onTapGesture { showMenu = false }
+
+            SideMenuView { destination in
+                showMenu = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    menuDestination = destination
+                }
+            }
+            .frame(width: menuWidth)
+            .shadow(color: .black.opacity(showMenu ? 0.2 : 0), radius: 12, x: 4, y: 0)
+            .offset(x: menuOffset)
+            .allowsHitTesting(showMenu)
+            .accessibilityHidden(!showMenu)
+            .gesture(
+                DragGesture()
+                    .updating($menuDragTranslation) { value, state, _ in
+                        state = min(0, value.translation.width)
+                    }
+                    .onEnded { value in
+                        if value.translation.width < -menuWidth * 0.25 {
+                            showMenu = false
+                        }
+                    }
+            )
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.86), value: showMenu)
+    }
+
+    private var dashboard: some View {
         NavigationStack {
             VStack(spacing: 32) {
                 Spacer()
@@ -88,6 +137,12 @@ struct DashboardView: View {
             }
             .navigationTitle("24Defend")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showMenu = true } label: {
+                        Image(systemName: "line.3.horizontal")
+                    }
+                    .accessibilityLabel("Abrir menú")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showLog = true } label: {
                         Image(systemName: "list.bullet.rectangle")
@@ -105,6 +160,17 @@ struct DashboardView: View {
             }
             .sheet(isPresented: $showDiagnostic) {
                 DiagnosticView()
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { menuDestination != nil },
+                set: { isPresented in if !isPresented { menuDestination = nil } }
+            )) {
+                switch menuDestination {
+                case .weeklyReports: WeeklyReportsView()
+                case .terms: TermsView()
+                case .contact: ContactSupportView()
+                case nil: EmptyView()
+                }
             }
             .onAppear { blockLog = BlockLog.load() }
             .refreshable { blockLog = BlockLog.load() }
