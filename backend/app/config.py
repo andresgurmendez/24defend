@@ -22,6 +22,17 @@ class Settings(BaseSettings):
     # Auth
     api_key: str = "dev-api-key-change-me"
 
+    # Dashboard auth — a *separate*, read-only credential from api_key.
+    # POST /telemetry/login exchanges this for an HttpOnly session cookie;
+    # the admin api_key above is never sent to or stored by the dashboard
+    # SPA, so a dashboard XSS can't escalate to /admin/* (PR #14 review
+    # findings #1/#2).
+    dashboard_api_key: str = "dev-dashboard-key-change-me"
+
+    # HMAC key signing dashboard session cookies (see app.auth). Must be a
+    # long random value in prod, set via Secrets Manager like api_key.
+    session_secret: str = "dev-session-secret-change-me"
+
     # CORS — origins allowed to call the API from a browser (internal dashboard).
     # Comma-separated in the env var, e.g. "https://dashboard.24defend.com,http://localhost:5173"
     # Default is prod-only on purpose — a deploy that forgets to set this

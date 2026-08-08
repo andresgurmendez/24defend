@@ -94,13 +94,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Only GET (read-only, public endpoints consumed by the internal dashboard
-# SPA). Never widen this to allow credentials/mutations without auth in front.
+# GET (stats reads) + POST (dashboard login/logout — the only mutating
+# calls a browser origin can make, and login is itself the auth boundary).
+# allow_credentials=True is required so the browser attaches the HttpOnly
+# dashboard session cookie (see app.auth) on cross-subdomain requests from
+# dashboard.24defend.com to api.24defend.com; this is safe only because
+# allow_origins is an explicit list, never "*". allow_headers is scoped to
+# what the dashboard actually sends — no wildcard, so a future flip to
+# allow_credentials doesn't silently need tightening later.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in settings.dashboard_cors_origins.split(",") if o.strip()],
-    allow_methods=["GET"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+    allow_credentials=True,
 )
 
 app.include_router(check_router)

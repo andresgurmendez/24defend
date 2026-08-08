@@ -7,8 +7,13 @@ import { EventsChart } from '@/components/EventsChart'
 import { TopDomainsTable } from '@/components/TopDomainsTable'
 import { SessionStatsPanel } from '@/components/SessionStatsPanel'
 import { VpnBehaviorPanel } from '@/components/VpnBehaviorPanel'
-import { ApiError, fetchDailyBlacklist, fetchDailyFalsePositives, fetchTelemetryStats } from '@/lib/api'
-import { clearStoredApiKey } from '@/lib/auth'
+import {
+  ApiError,
+  fetchDailyBlacklist,
+  fetchDailyFalsePositives,
+  fetchTelemetryStats,
+  logoutFromDashboard,
+} from '@/lib/api'
 import type { DomainClassification, TelemetryStats } from '@/lib/types'
 
 export function DashboardPage() {
@@ -43,7 +48,8 @@ export function DashboardPage() {
       setClassifications(map)
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        // fetchTelemetryStats already cleared the stored key on 401.
+        // Session cookie expired/rotated server-side — nothing client-side
+        // to clear, just bounce to /login.
         navigate('/login', { replace: true })
         return
       }
@@ -62,7 +68,7 @@ export function DashboardPage() {
       <Header
         onRefresh={load}
         onLogout={() => {
-          clearStoredApiKey()
+          void logoutFromDashboard()
           navigate('/login')
         }}
         refreshing={loading}

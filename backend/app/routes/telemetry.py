@@ -1,15 +1,22 @@
 """Telemetry endpoints — anonymous event collection from devices."""
 
 import logging
+import secrets
 import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 from time import time
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, field_validator
 
-from app.auth import require_api_key
+from app.auth import (
+    DASHBOARD_SESSION_COOKIE,
+    DASHBOARD_SESSION_TTL_SECONDS,
+    create_dashboard_session,
+    require_dashboard_session,
+)
+from app.config import settings
 from app.db import get_table
 
 logger = logging.getLogger(__name__)
@@ -71,6 +78,10 @@ class TelemetryBatch(BaseModel):
         if len(v) > MAX_EVENTS_PER_BATCH:
             raise ValueError(f"Maximum {MAX_EVENTS_PER_BATCH} events per batch")
         return v
+
+
+class DashboardLoginRequest(BaseModel):
+    dashboard_key: str
 
 
 # ---------- Endpoints ----------
@@ -160,13 +171,50 @@ async def ingest_events(batch: TelemetryBatch) -> dict:
     return {"accepted": items_written}
 
 
-@router.get("/stats", dependencies=[Depends(require_api_key)])
+@router.post("/login")
+async def dashboard_login(payload: DashboardLoginRequest, response: Response) -> dict:
+    """Exchanges the read-only dashboard key for a short-lived HttpOnly
+    session cookie. This is a *separate* credential from the admin api_key
+    that gates /admin/* — it's the only thing the dashboard SPA ever sends
+    or could leak via XSS, and it grants no write/admin access (PR #14
+    review findings #1/#2).
+    """
+    if not secrets.compare_digest(payload.dashboard_key, settings.dashboard_api_key):
+        raise HTTPException(status_code=401, detail="Invalid dashboard key")
+
+    response.set_cookie(
+        key=DASHBOARD_SESSION_COOKIE,
+        value=create_dashboard_session(),
+        max_age=DASHBOARD_SESSION_TTL_SECONDS,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        path="/telemetry",
+    )
+    return {"ok": True}
+
+
+@router.post("/logout")
+async def dashboard_logout(response: Response) -> dict:
+    response.delete_cookie(DASHBOARD_SESSION_COOKIE, path="/telemetry")
+    return {"ok": True}
+
+
+@router.get("/session", dependencies=[Depends(require_dashboard_session)])
+async def dashboard_session_check() -> dict:
+    """Cheap probe the SPA route guard calls on every mount to verify the
+    session cookie is still valid before rendering the dashboard, instead
+    of trusting client-side state (PR #14 review finding #6)."""
+    return {"ok": True}
+
+
+@router.get("/stats", dependencies=[Depends(require_dashboard_session)])
 async def get_stats() -> dict:
-    """Return aggregate telemetry stats. Requires the X-API-Key header (same
-    key that gates /admin/*) — this is our full threat-intel feed (layer
-    distribution, top domains, traffic volume) and must not be scrapeable
-    by anyone with the dashboard URL. /events (device ingestion) stays
-    unauthenticated on purpose; only this read endpoint is gated.
+    """Return aggregate telemetry stats. Requires a valid dashboard session
+    cookie (see require_dashboard_session) — this is our full threat-intel
+    feed (layer distribution, top domains, traffic volume) and must not be
+    scrapeable by anyone with the dashboard URL. /events (device ingestion)
+    stays unauthenticated on purpose; only this read endpoint is gated.
 
     Scans telemetry items and aggregates counts by event_type and layer.
     """

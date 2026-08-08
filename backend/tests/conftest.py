@@ -17,6 +17,7 @@ from fastapi import FastAPI
 from app.models import DomainEntry, EntryType, Verdict
 from app.routes.check import router as check_router
 from app.routes.admin import router as admin_router, public_router as admin_public_router
+from app.routes.telemetry import router as telemetry_router
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +141,7 @@ def _build_test_app() -> FastAPI:
     test_app.include_router(check_router)
     test_app.include_router(admin_router)
     test_app.include_router(admin_public_router)
+    test_app.include_router(telemetry_router)
 
     @test_app.get("/health")
     async def health():
@@ -155,10 +157,18 @@ def test_app():
 
 @pytest.fixture
 async def client(test_app):
-    """httpx.AsyncClient wired to the test FastAPI app."""
+    """httpx.AsyncClient wired to the test FastAPI app.
+
+    base_url is https (not http) because httpx's cookie jar enforces the
+    Secure attribute like a real browser would — and the dashboard session
+    cookie (app.auth) is Secure, matching the fact the real app is only
+    ever served over HTTPS (ALB/CloudFront). Real browsers additionally
+    treat http://localhost as a trustworthy exception for local dev; httpx
+    doesn't, so we just test over https here.
+    """
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=test_app),
-        base_url="http://test",
+        base_url="https://test",
     ) as ac:
         yield ac
 
@@ -168,6 +178,7 @@ async def client(test_app):
 # ---------------------------------------------------------------------------
 
 API_KEY = "dev-api-key-change-me"
+DASHBOARD_API_KEY = "dev-dashboard-key-change-me"
 
 
 @pytest.fixture

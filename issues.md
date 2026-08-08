@@ -346,7 +346,10 @@ Alternativa manual: cada FP reportado se agrega a VENDOR_ALLOWLIST
 `harmatrix` review flagged 8 findings; fixed the 4 🚨 (auth on
 `/telemetry/stats`, real login + route guard, CORS default no longer
 whitelisting localhost in prod, private S3 + CloudFront OAC for
-`DashboardBucket`) before merging. Deferring the 4 🟡:
+`DashboardBucket`) before merging. Round 2 review (PR #14) then found the
+auth design itself had a structural issue — see below, now fixed.
+
+Two items from round 1 are still deferred, unchanged:
 
 - **`cdk synth`/`deploy` reads `../frontend/dist` at synth time**
   (`s3deploy.BucketDeployment` in `infra/stack.py`). A clean checkout
@@ -356,28 +359,59 @@ whitelisting localhost in prod, private S3 + CloudFront OAC for
   `frontend/` right before `cdk deploy`, or switch to CDK's own
   `NodejsBuild`/bundling so the build happens inside the CDK asset
   step instead of being an out-of-band precondition.
-- **No `.env.development`** — Vite falls back to `.env.production`
-  (`VITE_API_BASE=https://api.24defend.com`) for local dev too, so a
-  dev running the dashboard against a local backend has to hand-edit
-  env files. Fix: add `frontend/.env.development` pointing at
-  `http://localhost:8000`, document the override in
-  `frontend/README.md`.
 - **`DashboardBucket` has `RemovalPolicy.DESTROY` (dev) without
   `auto_delete_objects=True`** — `cdk destroy` fails on a non-empty
   bucket, same as the pre-existing `WwwBucket` (this isn't a
-  regression, just an existing footgun this PR inherited). Fix:
-  `auto_delete_objects=not is_prod` alongside the existing
-  `removal_policy` conditional.
+  regression, just an existing footgun this PR inherited, shared by
+  every non-prod bucket in the stack, not just this one).
 - **`DashboardPage.load()` has no `AbortController`** — a manual
   refresh firing while a previous fetch is still in flight can let the
   older response resolve after the newer one and overwrite fresh state
-  with stale data. Fix: standard
-  `AbortController` + `useEffect` cleanup around the `fetch` calls in
-  `lib/api.ts`.
+  with stale data. Fix: standard `AbortController` + `useEffect`
+  cleanup around the `fetch` calls in `lib/api.ts`.
 
-None of these are security-critical the way the 4 🚨 were — worst case
-is a confusing deploy failure, dev friction, a stuck `cdk destroy`, or
-a rare stale-overwrite render glitch.
+None of these are security-critical — worst case is a confusing deploy
+failure, a stuck `cdk destroy`, or a rare stale-overwrite render
+glitch.
+
+### Round 2 (PR #14): dashboard reused the admin API key — now fixed
+
+`harmatrix` flagged that despite the round-1 fixes, the dashboard
+"login" just sent the same master admin key (`X-API-Key`) that gates
+`/admin/*` (bulk-add/delete domains, ingestion, bloom regen), stored
+plaintext in `sessionStorage` where any XSS could read it — so a UI
+bug or compromised dep would mean "XSS = full admin RCE." Fixed by
+splitting the credential and moving off client-readable storage:
+
+- `settings.dashboard_api_key` (env `DEFEND_DASHBOARD_API_KEY`) is a
+  **separate, read-only** credential from `settings.api_key`. It can
+  only ever reach `POST /telemetry/login`; it grants no `/admin/*`
+  access even if leaked.
+- `POST /telemetry/login` exchanges it for a short-lived (12h),
+  HttpOnly, Secure, SameSite=Strict session cookie
+  (`app.auth.require_dashboard_session`, HMAC-signed with
+  `settings.session_secret` / `DEFEND_SESSION_SECRET`). JS can't read
+  an HttpOnly cookie, so an XSS in the SPA can't exfiltrate it.
+  `GET /telemetry/stats` now requires this cookie instead of
+  `X-API-Key`.
+- `frontend/src/lib/auth.ts` is gone — the frontend holds no
+  auth-related state at all now. `RequireAuth` (`src/App.tsx`)
+  re-verifies via a live `GET /telemetry/session` probe on every
+  mount instead of trusting anything cached client-side.
+- `require_api_key` / `require_dashboard_session` use
+  `secrets.compare_digest` (was `!=`, a timing side channel) and
+  `require_api_key` returns 401 (not 422) on a missing header.
+- CORS (`backend/app/main.py`) now sets `allow_credentials=True` with
+  an explicit `allow_headers=["Content-Type"]` (was `["*"]`) so a
+  future flip to credentials doesn't silently need tightening.
+- `infra/stack.py` adds a WAF `RateLimitPerIp` rule (300 req / 5min
+  per IP) on the backend ALB — short-term brute-force mitigation for
+  the static dashboard/admin keys, since neither rotates yet. Key
+  rotation/expiry policy is still open — worth revisiting once the
+  dashboard has more than ~3 internal users.
+- New Secrets Manager entries (`{prefix}/dashboard-api-key`,
+  `{prefix}/session-secret`) need the same manual post-deploy set
+  as `{prefix}/api-key` (see CLAUDE.md → "Secrets").
 
 ## Notes
 

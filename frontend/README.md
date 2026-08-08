@@ -1,9 +1,23 @@
 # 24Defend — Panel interno (frontend)
 
-Dashboard interno de métricas para el equipo de 24Defend. Fase actual: **solo visual**.
-No hay autenticación real ni backend de métricas dedicado todavía — el login es una
-pantalla estática y el dashboard consume el único endpoint agregado que existe hoy,
-`GET /telemetry/stats`.
+Dashboard interno de métricas para el equipo de 24Defend. Consume `GET /telemetry/stats`
+y los endpoints públicos `/daily-blacklist` / `/daily-false-positives`.
+
+## Autenticación
+
+El login es real, contra el backend: `POST /telemetry/login` valida una **dashboard key**
+de solo lectura (distinta de la `api_key` de admin que protege `/admin/*`) y, si es
+correcta, el backend responde con un cookie `HttpOnly` de sesión (`Set-Cookie`, 12h de
+duración). El frontend nunca ve ni guarda la credencial — el cookie es inaccesible desde
+JS, así que un XSS en la SPA no puede robarla ni escalar a `/admin/*`.
+
+`RequireAuth` (`src/App.tsx`) no confía en ningún estado local: en cada mount hace un
+probe real a `GET /telemetry/session` para confirmar que el cookie sigue siendo válido
+antes de renderizar el dashboard. `Salir` llama a `POST /telemetry/logout`, que borra el
+cookie server-side.
+
+Ver `backend/app/auth.py` (`require_dashboard_session`) y
+`backend/app/routes/telemetry.py` (`/login`, `/logout`, `/session`, `/stats`).
 
 ## Stack
 
@@ -19,27 +33,43 @@ npm install
 npm run dev
 ```
 
-El servidor de Vite corre en `http://localhost:5173` y proxea `/api/*` hacia
-`https://api.24defend.com` (ver `vite.config.ts`) para evitar problemas de CORS
-sin necesidad de tocar el backend, que hoy no tiene `CORSMiddleware` configurado.
+El servidor de Vite corre en `http://localhost:5173`. No hay proxy de desarrollo: el
+backend tiene `CORSMiddleware` configurado (`allow_credentials=True`, origins explícitos)
+y la SPA llama directo a `VITE_API_BASE_URL`.
+
+`.env.development` apunta por defecto a un backend local (`http://localhost:8080`) —
+**nunca a prod**, para que la dashboard key que tipeás en dev no viaje por el backend
+compartido. Corré el backend local:
+
+```bash
+cd backend && .venv/bin/uvicorn app.main:app --reload --port 8080
+```
+
+y agregá `http://localhost:5173` a `DEFEND_DASHBOARD_CORS_ORIGINS` en su entorno. Si
+preferís no correr un backend local, sobreescribí `VITE_API_BASE_URL` en un
+`.env.development.local` (gitignoreado) apuntando a un backend de dev compartido — nunca
+a prod.
 
 ## Variables de entorno
 
-Ver `.env.example`. Por defecto `VITE_API_BASE_URL=/api` usa el proxy de desarrollo.
+Ver `.env.example`, `.env.development`, `.env.production`. `VITE_API_BASE_URL` es
+obligatoria en dev — si falta, `src/lib/api.ts` tira un error explícito en vez de caer
+silenciosamente a prod.
 
-## Qué falta (fuera de alcance de esta fase, ver el plan)
+## Qué falta (ver `issues.md`)
 
-- Login real contra un backend de autenticación (`POST /internal/auth/login`).
-- Tabla `24defend-events` con clave compuesta para corregir el bug de sobreescritura
-  de telemetría (hoy cada evento del mismo tipo/día pisa al anterior).
-- Endpoints `/internal/metrics/*` con filtros de fecha reales y conteo de
-  dispositivos activos.
+- `cdk synth`/`deploy` lee `frontend/dist` en synth time — requiere `npm run build`
+  manual antes; no hay paso automatizado todavía.
+- `DashboardPage.load()` no tiene `AbortController` — race rara de sobre-escritura en
+  refrescos manuales muy seguidos.
+- `DashboardBucket` con `RemovalPolicy.DESTROY` sin `auto_delete_objects=True` (mismo
+  problema pre-existente que `WwwBucket`).
 
 ## Deploy a AWS
 
-La infraestructura (`DashboardBucket` + `DashboardCdn` en `infra/stack.py`) y el CORS
-del backend (`backend/app/config.py` → `dashboard_cors_origins`) ya están en el código.
-Falta correr el deploy real. Pasos:
+La infraestructura (`DashboardBucket` + `DashboardCdn` en `infra/stack.py`), el CORS del
+backend (`backend/app/config.py` → `dashboard_cors_origins`) y los secrets de
+`dashboard_api_key` / `session_secret` ya están en el código. Pasos:
 
 ```bash
 # 1. Build de producción (usa .env.production → apunta a https://api.24defend.com)
@@ -57,8 +87,17 @@ cdk deploy defend-dev --require-approval never
 ```
 
 `cdk deploy` crea el bucket S3, la distribución de CloudFront, el certificado ACM para
-`dashboard.24defend.com`, y sube automáticamente `frontend/dist` (vía `BucketDeployment`,
-con invalidación de CloudFront incluida).
+`dashboard.24defend.com`, el WAF rate-limit sobre el ALB del backend, y sube
+automáticamente `frontend/dist` (vía `BucketDeployment`, con invalidación de CloudFront
+incluida).
+
+Después del primer deploy, hay que setear manualmente en Secrets Manager (igual que
+`api_key`, ver CLAUDE.md → "Secrets"):
+
+- `defend-dev/dashboard-api-key` — la dashboard key de solo lectura (distinta de
+  `defend-dev/api-key`).
+- `defend-dev/session-secret` — clave HMAC larga y random para firmar el cookie de
+  sesión.
 
 ### Validación del certificado ACM (manual, una sola vez)
 

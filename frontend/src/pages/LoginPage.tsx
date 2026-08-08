@@ -4,8 +4,7 @@ import { ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { ApiError, verifyApiKey } from '@/lib/api'
-import { setStoredApiKey } from '@/lib/auth'
+import { ApiError, loginToDashboard } from '@/lib/api'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -24,12 +23,11 @@ export function LoginPage() {
 
     setSubmitting(true)
     try {
-      const ok = await verifyApiKey(apiKey.trim())
+      const ok = await loginToDashboard(apiKey.trim())
       if (!ok) {
         setError('Clave inválida.')
         return
       }
-      setStoredApiKey(apiKey.trim())
       navigate('/')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Ocurrió un error inesperado.')

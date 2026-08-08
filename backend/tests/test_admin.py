@@ -32,7 +32,10 @@ class TestAdminAuth:
         resp = await client.post("/admin/domains", json={
             "domains": ["evil.com"], "entry_type": "blacklist",
         })
-        assert resp.status_code == 422  # missing header
+        # 401, not 422: require_api_key takes Header(default=None) and raises
+        # explicitly so callers can't distinguish "missing" from "invalid"
+        # via status code (PR #14 review finding #8).
+        assert resp.status_code == 401
 
     async def test_invalid_api_key(self, client, mock_get_table):
         resp = await client.post(

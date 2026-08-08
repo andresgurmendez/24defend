@@ -20,6 +20,7 @@ from aws_cdk import (
     aws_logs as logs,
     aws_certificatemanager as acm,
     aws_elasticloadbalancingv2 as elbv2,
+    aws_wafv2 as wafv2,
 )
 
 
@@ -268,6 +269,24 @@ class DefendStack(Stack):
             description="DEFEND_SERPER_API_KEY for Google search",
         )
 
+        # Read-only dashboard login key — separate from api_key on purpose
+        # (PR #14 review findings #1/#2): the dashboard SPA only ever
+        # exchanges this for an HttpOnly session cookie, so it can't be
+        # used to reach /admin/* even if leaked.
+        dashboard_key_secret = secretsmanager.Secret(
+            self,
+            "DashboardApiKeySecret",
+            secret_name=f"{prefix}/dashboard-api-key",
+            description="DEFEND_DASHBOARD_API_KEY for the internal metrics dashboard login",
+        )
+
+        session_secret_secret = secretsmanager.Secret(
+            self,
+            "SessionSecret",
+            secret_name=f"{prefix}/session-secret",
+            description="DEFEND_SESSION_SECRET — HMAC key signing dashboard session cookies",
+        )
+
         # ---------------------------------------------------------------
         # ECS cluster
         # ---------------------------------------------------------------
@@ -369,6 +388,8 @@ class DefendStack(Stack):
                 secrets={
                     "DEFEND_API_KEY": ecs.Secret.from_secrets_manager(api_key_secret),
                     "DEFEND_SERPER_API_KEY": ecs.Secret.from_secrets_manager(serper_secret),
+                    "DEFEND_DASHBOARD_API_KEY": ecs.Secret.from_secrets_manager(dashboard_key_secret),
+                    "DEFEND_SESSION_SECRET": ecs.Secret.from_secrets_manager(session_secret_secret),
                 },
                 log_driver=ecs.LogDrivers.aws_logs(
                     stream_prefix="defend",
@@ -388,6 +409,50 @@ class DefendStack(Stack):
         )
 
         # ---------------------------------------------------------------
+        # WAF — per-IP rate limit on the ALB (PR #14 review finding #3: a
+        # single static dashboard/admin key with no throttling is an
+        # unthrottled brute-force oracle). Short-term mitigation; token
+        # rotation/expiry is tracked separately in issues.md.
+        # ---------------------------------------------------------------
+        api_web_acl = wafv2.CfnWebACL(
+            self,
+            "ApiWebAcl",
+            name=f"{prefix}-api-waf",
+            scope="REGIONAL",
+            default_action=wafv2.CfnWebACL.DefaultActionProperty(allow={}),
+            visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                sampled_requests_enabled=True,
+                cloud_watch_metrics_enabled=True,
+                metric_name=f"{prefix}-api-waf",
+            ),
+            rules=[
+                wafv2.CfnWebACL.RuleProperty(
+                    name="RateLimitPerIp",
+                    priority=0,
+                    action=wafv2.CfnWebACL.RuleActionProperty(block={}),
+                    statement=wafv2.CfnWebACL.StatementProperty(
+                        rate_based_statement=wafv2.CfnWebACL.RateBasedStatementProperty(
+                            limit=300,  # requests per rolling 5-minute window, per IP
+                            aggregate_key_type="IP",
+                        ),
+                    ),
+                    visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                        sampled_requests_enabled=True,
+                        cloud_watch_metrics_enabled=True,
+                        metric_name=f"{prefix}-rate-limit-per-ip",
+                    ),
+                ),
+            ],
+        )
+
+        wafv2.CfnWebACLAssociation(
+            self,
+            "ApiWebAclAssociation",
+            resource_arn=fargate_service.load_balancer.load_balancer_arn,
+            web_acl_arn=api_web_acl.attr_arn,
+        )
+
+        # ---------------------------------------------------------------
         # Outputs
         # ---------------------------------------------------------------
         protocol = "https" if certificate else "http"
@@ -400,3 +465,5 @@ class DefendStack(Stack):
         CfnOutput(self, "CloudFrontDomain", value=distribution.distribution_domain_name)
         CfnOutput(self, "ApiKeySecretArn", value=api_key_secret.secret_arn)
         CfnOutput(self, "SerperSecretArn", value=serper_secret.secret_arn)
+        CfnOutput(self, "DashboardApiKeySecretArn", value=dashboard_key_secret.secret_arn)
+        CfnOutput(self, "SessionSecretArn", value=session_secret_secret.secret_arn)
