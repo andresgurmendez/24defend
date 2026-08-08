@@ -84,6 +84,41 @@ public final class DomainChecker {
         case allowed
     }
 
+    /// Resolves the precedence between whitelist and blacklist for a single
+    /// normalized domain, or `nil` if neither list has an exact/subdomain
+    /// match (caller should fall through to the fuzzy/heuristic checks).
+    ///
+    /// INVARIANT: whitelist is checked first — any subdomain of a
+    /// whitelisted root short-circuits to `.allowed` and never reaches the
+    /// blacklist checks below. Do NOT add a specific-child phishing pattern
+    /// (e.g. login.brou.com.uy) to `blacklist` expecting it to block — it
+    /// won't, because its parent (brou.com.uy) is whitelisted and this loop
+    /// returns first. Route compromised-subdomain patterns to the runtime
+    /// blacklist or daily blacklist instead — those run BEFORE this
+    /// function, in the tunnel. Lists are parameters (rather than reading
+    /// the static `whitelist`/`blacklist` directly) purely so tests can
+    /// inject a conflicting pair and pin this ordering — matches the
+    /// bloom-filter order used in the tunnel.
+    static func precedenceResult(domain normalized: String, whitelist: [String], blacklist: Set<String>) -> Result? {
+        for official in whitelist {
+            if normalized == official || normalized.hasSuffix(".\(official)") {
+                return .allowed
+            }
+        }
+
+        if blacklist.contains(normalized) {
+            return .blocked(reason: "Known phishing domain")
+        }
+
+        for bad in blacklist {
+            if normalized.hasSuffix(".\(bad)") {
+                return .blocked(reason: "Subdomain of known phishing domain")
+            }
+        }
+
+        return nil
+    }
+
     public static func check(domain: String) -> Result {
         let normalized = domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
 
@@ -100,32 +135,12 @@ public final class DomainChecker {
             return .allowed
         }
 
-        // 1. Exact whitelist match — allow before any block/warn heuristics,
-        // matching the bloom-filter order in the tunnel.
-        //
-        // INVARIANT: any subdomain of a whitelisted root short-circuits to
-        // .allowed here and never reaches the blacklist checks below. Do NOT
-        // add a specific-child phishing pattern (e.g. login.brou.com.uy) to
-        // `blacklist` expecting it to block — it won't, because its parent
-        // (brou.com.uy) is whitelisted and this loop returns first. Route
-        // compromised-subdomain patterns to the runtime blacklist or daily
-        // blacklist instead — those run BEFORE this function, in the tunnel.
-        for official in whitelist {
-            if normalized == official || normalized.hasSuffix(".\(official)") {
-                return .allowed
-            }
-        }
-
-        // 2. Exact blacklist match
-        if blacklist.contains(normalized) {
-            return .blocked(reason: "Known phishing domain")
-        }
-
-        // 3. Subdomain of blacklisted domain
-        for bad in blacklist {
-            if normalized.hasSuffix(".\(bad)") {
-                return .blocked(reason: "Subdomain of known phishing domain")
-            }
+        // 1-3. Whitelist-before-blacklist precedence. Factored out into
+        // `precedenceResult` (with injectable lists) so tests can pin the
+        // ordering against a case the real static lists can't produce —
+        // see DomainCheckerTests.
+        if let result = precedenceResult(domain: normalized, whitelist: whitelist, blacklist: blacklist) {
+            return result
         }
 
         // 4. BK-tree fuzzy search — but compare on the BRAND LABEL only

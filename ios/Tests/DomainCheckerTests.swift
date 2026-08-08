@@ -21,20 +21,22 @@ final class DomainCheckerTests: XCTestCase {
         }
     }
 
-    /// Pinning case: `login.brou.com.uy` is a subdomain of the whitelisted
-    /// `brou.com.uy`. Even if such a pattern were added to `blacklist`
-    /// (it currently isn't), whitelist-first precedence means it resolves
-    /// to .allowed, not .blocked. Documents the invariant in
-    /// `DomainChecker.check` so a future refactor doesn't silently assume
-    /// blacklist wins.
+    /// Pinning case: `login.brou.com.uy` is BOTH an exact blacklist entry
+    /// AND a subdomain of the whitelisted `brou.com.uy`. This is the one
+    /// input that actually discriminates the two orderings — under
+    /// blacklist-first it would resolve to `.blocked`, under
+    /// whitelist-first (the real behavior) it resolves to `.allowed`. The
+    /// static `blacklist`/`whitelist` sets have no such overlapping pair
+    /// today, so the lists are injected directly into `precedenceResult`
+    /// rather than going through `check(domain:)`.
     func test_blacklist_entry_under_whitelisted_parent_is_masked_by_whitelist() {
-        XCTAssertFalse(
-            DomainChecker.blacklist.contains("login.brou.com.uy"),
-            "this test pins current precedence assuming this domain is NOT already blacklisted"
+        let result = DomainChecker.precedenceResult(
+            domain: "login.brou.com.uy",
+            whitelist: ["brou.com.uy"],
+            blacklist: ["login.brou.com.uy"]
         )
-        let result = DomainChecker.check(domain: "login.brou.com.uy")
         guard case .allowed = result else {
-            return XCTFail("expected .allowed (whitelist parent wins), got \(result)")
+            return XCTFail("expected .allowed (whitelist parent wins even though blacklist has an exact match), got \(String(describing: result))")
         }
     }
 }
