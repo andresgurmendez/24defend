@@ -17,6 +17,14 @@ struct WeeklyReportsView: View {
     @State private var hasAnyHistory = true
     @State private var lastRefresh = Date()
 
+    // Stable publisher identity at type scope. Creating this inline inside
+    // `.onReceive` re-evaluates a fresh Timer.publish().autoconnect() on
+    // every body render (any state change — a filter chip tap, the sheet
+    // toggling, even the timer tick itself), tearing down the previous
+    // subscription and restarting the 30s countdown. During active
+    // interaction the auto-refresh could effectively never fire.
+    private static let refreshTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+
     var body: some View {
         Group {
             if !hasAnyHistory {
@@ -47,7 +55,7 @@ struct WeeklyReportsView: View {
         // UserDefaults in the background (e.g. mid phishing-campaign burst)
         // with no notification into this process. Poll so a screen left
         // open on the empty state or stale counts catches up within 30s.
-        .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now in
+        .onReceive(Self.refreshTimer) { now in
             lastRefresh = now
             hasAnyHistory = !BlockLog.load().isEmpty
         }
