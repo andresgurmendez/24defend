@@ -18,6 +18,13 @@ targets:
           - "*.entitlements"
           - "Info.plist"
       - path: Shared
+      # Privacy policy is rendered from the same HTML the website serves
+      # (see PrivacyPolicyView.swift) instead of a hand-maintained Swift
+      # copy, so the in-app and App-Store-linked versions can't drift.
+      - path: ../www/privacy-es.html
+        buildPhase: resources
+      - path: ../www/privacy-en.html
+        buildPhase: resources
     info:
       path: TwentyFourDefend/Info.plist
       properties:
