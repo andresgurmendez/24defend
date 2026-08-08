@@ -241,6 +241,31 @@ Deferring:
   text) — a website-wide styling decision more than an app-specific
   one; revisit together with any broader `www/` accessibility pass.
 
+### Weekly reports (WeeklyReportsView): polish deferred from PR #4 review
+
+`harmatrix` review flagged 8 findings; fixed the 3 🚨 (green events
+counted as fraud attempts in the header, "Cancelar" mutating the
+applied custom range, off-by-one on the custom-range end date) plus 2
+🟡 (rolling vs calendar-aligned "7 días" window, no live refresh while
+the screen is open). Deferring the rest:
+
+- **200-event `BlockLog` cap silently truncates counts.** During an
+  active phishing campaign a user can generate >200 events in <30
+  days; oldest get dropped and the header reads as precise ("Te
+  protegimos de 200 intentos") when it's actually a floor. Fix ideas:
+  raise `maxEntries`, annotate the header when `count == 200`, or add
+  an explicit truncation notice.
+- **Chart aggregates all severities into one bar per day**, losing the
+  story the stat cards tell (a day with 5 red + 5 green looks
+  identical to a day with 10 red). Swift Charts supports
+  `.foregroundStyle(by:)` for a stacked bar keyed on `event.severity`.
+- **Initial `hasAnyHistory = true` flashes the full scaffold** for
+  brand-new users before `.onAppear` flips it to the empty state.
+  Compute the initial value in `init` instead, or default to `false`.
+
+None of these are correctness-critical the way the 🚨 findings were —
+worst case is an undercount during a large campaign or a cosmetic
+flash/chart-detail loss.
 ### Can't filter DNS by source app (browser vs background)
 
 `NEPacketTunnelProvider` (our current extension type) receives raw IP
