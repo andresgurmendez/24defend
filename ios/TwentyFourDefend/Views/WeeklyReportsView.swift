@@ -16,7 +16,7 @@ struct WeeklyReportsView: View {
                 .padding(.horizontal, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle("Reportes semanales")
+        .navigationTitle("Reportes semanales de phishing")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
